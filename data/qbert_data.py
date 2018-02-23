@@ -45,23 +45,19 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     if transitions_filenumber == -1:
       raise ValueError("The transitions file was not found")
     filename = get_filename(path, transitions_filename, transitions_filenumber, counts_filename, models_filename)
-    with open(os.path.join(path, filename+"_states.pkl"), "rb") as f:
-      states = pickle.load(f)
+    # with open(os.path.join(path, filename+"_states.pkl"), "rb") as f:
+    #   states = pickle.load(f).reshape(list(states.shape)+[1])
     with open(os.path.join(path, filename+"_rest.pkl"), "rb") as f:
       downsampled, actions, rewards, terms = pickle.load(f)
+    states = downsampled.reshape(list(states.shape)+[1])
     dataset_size = states.shape[0]
     train_set_size = 9 * int(dataset_size / 10)
     test_set_size = dataset_size - train_set_size
-    _print(states.shape)
-    states = states.reshape(list(states.shape)+[1])
-    _print(states.shape)
-    _print(actions.shape)
-    _print("The dataset size is {}".format(dataset_size))
-    _print("The train set size is {}".format(train_set_size))
-    _print("The test set size is {}".format(test_set_size))
     if subset == 'train':
+        _print("The train set size is {}".format(train_set_size))
         return states[:train_set_size], actions[:train_set_size]
     elif subset == 'test':
+        _print("The test set size is {}".format(test_set_size))
         return states[train_set_size:], actions[train_set_size:]
     else:
         raise ValueError("The subset has to be train or test")

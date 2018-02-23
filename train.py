@@ -79,7 +79,7 @@ train_data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, r
 test_data = DataLoader(args.data_dir, 'test', args.batch_size * args.nr_gpu, shuffle=False, return_labels=args.class_conditional)
 obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
-sys.exit()
+
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
 xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in range(args.nr_gpu)]
