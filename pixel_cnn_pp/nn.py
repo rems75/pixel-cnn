@@ -267,6 +267,9 @@ def gated_resnet(x, a=None, h=None, nonlinearity=concat_elu, conv=conv2d, init=F
     num_filters = xs[-1]
 
     c1 = conv(nonlinearity(x), num_filters)
+    print(c1)
+    print(a)
+    print(num_filters)
     if a is not None: # add short-cut connection if auxiliary input 'a' is given
         c1 += nin(nonlinearity(a), num_filters)
     c1 = nonlinearity(c1)
