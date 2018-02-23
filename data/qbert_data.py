@@ -49,7 +49,7 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     #   states = pickle.load(f).reshape(list(states.shape)+[1])
     with open(os.path.join(path, filename+"_rest.pkl"), "rb") as f:
       downsampled, actions, rewards, terms = pickle.load(f)
-    states = downsampled.reshape(list(states.shape)+[1])
+    states = downsampled.reshape(list(downsampled.shape)+[1])
     dataset_size = states.shape[0]
     train_set_size = 9 * int(dataset_size / 10)
     test_set_size = dataset_size - train_set_size
