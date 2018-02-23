@@ -81,8 +81,11 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
 
             print("9")
             for rep in range(nr_resnet+1):
-                print(rep, nn.down_shifted_conv2d)
+                print(u)
+                print(ul)
+                print("9a")
                 u = nn.gated_resnet(u, u_list.pop(), conv=nn.down_shifted_conv2d)
+                print("9b")
                 ul = nn.gated_resnet(ul, tf.concat([u, ul_list.pop()],3), conv=nn.down_right_shifted_conv2d)
                 tf.add_to_collection('checkpoints', u)
                 tf.add_to_collection('checkpoints', ul)
