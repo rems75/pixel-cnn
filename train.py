@@ -55,12 +55,6 @@ print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) #
 rng = np.random.RandomState(args.seed)
 tf.set_random_seed(args.seed)
 
-# energy distance or maximum likelihood?
-if args.energy_distance:
-    loss_fun = nn.energy_distance
-else:
-    loss_fun = nn.discretized_mix_logistic_loss
-
 # initialize data loaders for train/test splits
 if args.data_set == 'imagenet' and args.class_conditional:
     raise("We currently don't have labels for the small imagenet data set")
@@ -79,6 +73,12 @@ train_data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, r
 test_data = DataLoader(args.data_dir, 'test', args.batch_size * args.nr_gpu, shuffle=False, return_labels=args.class_conditional)
 obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
+
+# energy distance or maximum likelihood?
+if args.energy_distance:
+    loss_fun = nn.energy_distance
+else:
+    loss_fun = nn.discretized_mix_logistic_loss(num_channels=obs_shape[2])
 
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
