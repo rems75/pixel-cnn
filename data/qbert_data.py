@@ -11,6 +11,10 @@ import sys
 import tarfile
 from six.moves import urllib
 
+def _print(s):
+    print(s)
+    sys.stdout.flush()
+
 def unpickle(file):
     fo = open(file, 'rb')
     if (sys.version_info >= (3, 0)):
@@ -48,10 +52,10 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     dataset_size = states.shape[0]
     train_set_size = 9 * int(dataset_size / 10)
     test_set_size = dataset_size - train_set_size
-    print(states.shape)
+    _print(states.shape)
     states = states.reshape(list(states.shape)+[1])
-    print(states.shape)
-    print(actions.shape)
+    _print(states.shape)
+    _print(actions.shape)
     _print("The dataset size is {}".format(dataset_size))
     _print("The train set size is {}".format(train_set_size))
     _print("The test set size is {}".format(test_set_size))
