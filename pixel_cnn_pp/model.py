@@ -30,7 +30,7 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
             raise('resnet nonlinearity ' + resnet_nonlinearity + ' is not supported')
 
         with arg_scope([nn.gated_resnet], nonlinearity=resnet_nonlinearity, h=h):
-
+            print("1")
             # ////////// up pass through pixelCNN ////////
             xs = nn.int_shape(x)
             x_pad = tf.concat([x,tf.ones(xs[:-1]+[1])],3) # add channel of ones to distinguish image from padding later on
@@ -38,20 +38,25 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
             ul_list = [nn.down_shift(nn.down_shifted_conv2d(x_pad, num_filters=nr_filters, filter_size=[1,3])) + \
                        nn.right_shift(nn.down_right_shifted_conv2d(x_pad, num_filters=nr_filters, filter_size=[2,1]))] # stream for up and to the left
 
+            print("2")
             for rep in range(nr_resnet):
                 u_list.append(nn.gated_resnet(u_list[-1], conv=nn.down_shifted_conv2d))
                 ul_list.append(nn.gated_resnet(ul_list[-1], u_list[-1], conv=nn.down_right_shifted_conv2d))
 
+            print("3")
             u_list.append(nn.down_shifted_conv2d(u_list[-1], num_filters=nr_filters, stride=[2, 2]))
             ul_list.append(nn.down_right_shifted_conv2d(ul_list[-1], num_filters=nr_filters, stride=[2, 2]))
 
+            print("4")
             for rep in range(nr_resnet):
                 u_list.append(nn.gated_resnet(u_list[-1], conv=nn.down_shifted_conv2d))
                 ul_list.append(nn.gated_resnet(ul_list[-1], u_list[-1], conv=nn.down_right_shifted_conv2d))
 
+            print("5")
             u_list.append(nn.down_shifted_conv2d(u_list[-1], num_filters=nr_filters, stride=[2, 2]))
             ul_list.append(nn.down_right_shifted_conv2d(ul_list[-1], num_filters=nr_filters, stride=[2, 2]))
 
+            print("6")
             for rep in range(nr_resnet):
                 u_list.append(nn.gated_resnet(u_list[-1], conv=nn.down_shifted_conv2d))
                 ul_list.append(nn.gated_resnet(ul_list[-1], u_list[-1], conv=nn.down_right_shifted_conv2d))
@@ -60,6 +65,7 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
             for t in u_list+ul_list:
                 tf.add_to_collection('checkpoints', t)
 
+            print("7")
             # /////// down pass ////////
             u = u_list.pop()
             ul = ul_list.pop()
@@ -69,18 +75,22 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
                 tf.add_to_collection('checkpoints', u)
                 tf.add_to_collection('checkpoints', ul)
 
+            print("8")
             u = nn.down_shifted_deconv2d(u, num_filters=nr_filters, stride=[2, 2])
             ul = nn.down_right_shifted_deconv2d(ul, num_filters=nr_filters, stride=[2, 2])
 
+            print("9")
             for rep in range(nr_resnet+1):
                 u = nn.gated_resnet(u, u_list.pop(), conv=nn.down_shifted_conv2d)
                 ul = nn.gated_resnet(ul, tf.concat([u, ul_list.pop()],3), conv=nn.down_right_shifted_conv2d)
                 tf.add_to_collection('checkpoints', u)
                 tf.add_to_collection('checkpoints', ul)
 
+            print("10")
             u = nn.down_shifted_deconv2d(u, num_filters=nr_filters, stride=[2, 2])
             ul = nn.down_right_shifted_deconv2d(ul, num_filters=nr_filters, stride=[2, 2])
 
+            print("11")
             for rep in range(nr_resnet+1):
                 u = nn.gated_resnet(u, u_list.pop(), conv=nn.down_shifted_conv2d)
                 ul = nn.gated_resnet(ul, tf.concat([u, ul_list.pop()],3), conv=nn.down_right_shifted_conv2d)
