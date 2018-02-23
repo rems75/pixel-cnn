@@ -4,11 +4,12 @@ by Krizhevsky et al. and hosted here: https://www.cs.toronto.edu/~kriz/cifar.htm
 """
 
 import glob
+import numpy as np
 import os
+import pickle
 import sys
 import tarfile
 from six.moves import urllib
-import numpy as np
 
 def unpickle(file):
     fo = open(file, 'rb')
