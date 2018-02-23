@@ -86,7 +86,7 @@ class DataLoader(object):
         self.return_labels = return_labels
 
         # load CIFAR-10 training data to RAM
-        self.data, self.labels = load(os.path.join(data_dir,'qbert'), subset="train")
+        self.data, self.labels = load(data_dir, subset="train")
         # self.data = np.transpose(self.data, (0,2,3,1)) # (N,3,32,32) -> (N,32,32,3)
 
         self.p = 0 # pointer to where we are in iteration
