@@ -49,14 +49,14 @@ def discretized_mix_logistic_loss(num_channels=3):
         """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
         xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,32,32,3)
         ls = int_shape(l) # predicted distribution, e.g. (B,32,32,100)
-        nr_mix = int(3/num_channels) * int(ls[-1] / 10) # here and below: unpacking the params of the mixture of logistics
-        print(nr_mix)
+        nr_mix = int(ls[-1] / 10) # here and below: unpacking the params of the mixture of logistics
         logit_probs = l[:,:,:,:nr_mix]
-        l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*3])
-        means = l[:,:,:,:,:nr_mix]
-        log_scales = tf.maximum(l[:,:,:,:,nr_mix:2*nr_mix], -7.)
-        coeffs = tf.nn.tanh(l[:,:,:,:,2*nr_mix:3*nr_mix])
+        l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*3*int(3/num_channels)])
+        means = l[:,:,:,:,:nr_mix*int(3/num_channels)]
+        log_scales = tf.maximum(l[:,:,:,:,nr_mix*int(3/num_channels):2*nr_mix*int(3/num_channels)], -7.)
+        coeffs = tf.nn.tanh(l[:,:,:,:,2*nr_mix*int(3/num_channels):3*nr_mix*int(3/num_channels)])
         x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
+        print(x.shape)
         m2 = tf.reshape(means[:,:,:,1,:] + coeffs[:, :, :, 0, :] * x[:, :, :, 0, :], [xs[0],xs[1],xs[2],1,nr_mix])
         m3 = tf.reshape(means[:, :, :, 2, :] + coeffs[:, :, :, 1, :] * x[:, :, :, 0, :] + coeffs[:, :, :, 2, :] * x[:, :, :, 1, :], [xs[0],xs[1],xs[2],1,nr_mix])
         means = tf.concat([tf.reshape(means[:,:,:,0,:], [xs[0],xs[1],xs[2],1,nr_mix]), m2, m3],3)
