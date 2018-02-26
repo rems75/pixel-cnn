@@ -78,7 +78,10 @@ assert len(obs_shape) == 3, 'assumed right now'
 if args.energy_distance:
     loss_fun = nn.energy_distance
 else:
-    loss_fun = nn.discretized_mix_logistic_loss(num_channels=obs_shape[2])
+    if obs_shape[2] == 1:
+        loss_fun = nn.discretized_mix_logistic_loss_greyscale
+    else:
+        loss_fun = nn.discretized_mix_logistic_loss
 
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
