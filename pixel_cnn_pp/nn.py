@@ -50,6 +50,7 @@ def discretized_mix_logistic_loss(num_channels=3):
         xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,32,32,3)
         ls = int_shape(l) # predicted distribution, e.g. (B,32,32,100)
         nr_mix = int(3/num_channels) * int(ls[-1] / 10) # here and below: unpacking the params of the mixture of logistics
+        print(nr_mix)
         logit_probs = l[:,:,:,:nr_mix]
         l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*3])
         means = l[:,:,:,:,:nr_mix]
