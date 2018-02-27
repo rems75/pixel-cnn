@@ -80,7 +80,7 @@ if args.energy_distance:
 else:
     if obs_shape[2] == 1:
         loss_fun = nn.discretized_mix_logistic_loss_greyscale
-        var_per_logistic = 7
+        var_per_logistic = 3
     else:
         loss_fun = nn.discretized_mix_logistic_loss
         var_per_logistic = 10
