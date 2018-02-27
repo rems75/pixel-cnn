@@ -113,7 +113,9 @@ def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
     log_pdf_mid = mid_in - log_scales - 2.*tf.nn.softplus(mid_in) # log probability in the center of the bin, to be used in extreme cases (not actually used in our code)
 
     log_probs = tf.where(x < -0.999, log_cdf_plus, tf.where(x > 0.999, log_one_minus_cdf_min, tf.where(cdf_delta > 1e-5, tf.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid - np.log(127.5))))
-
+    print(log_probs.shape)
+    print(logit_probs.shape)
+    print(log_prob_from_logits(logit_probs).shape)
     log_probs = tf.reduce_sum(log_probs,3) + log_prob_from_logits(logit_probs)
     if sum_all:
         return -tf.reduce_sum(log_sum_exp(log_probs))
