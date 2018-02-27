@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Trains a Pixel-CNN++ generative model on CIFAR-10 or Tiny ImageNet data.
 Uses multiple GPUs, indicated by the flag --nr_gpu
@@ -23,7 +25,8 @@ from utils import plotting
 parser = argparse.ArgumentParser()
 # data I/O
 parser.add_argument('-i', '--data_dir', type=str, default='data', help='Location for the dataset')
-parser.add_argument('-o', '--save_dir', type=str, default='save', help='Location for parameter checkpoints and samples')
+parser.add_argument('-o', '--model_dir', type=str, default='save', help='Location for parameter checkpoints and samples')
+parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
 parser.add_argument('-t', '--save_interval', type=int, default=20, help='Every how many epochs to write checkpoint/samples?')
 parser.add_argument('-r', '--load_params', dest='load_params', action='store_true', help='Restore training from previous model checkpoint?')
@@ -193,8 +196,8 @@ def make_feed_dict(data, init=False):
     return feed_dict
 
 # //////////// perform training //////////////
-if not os.path.exists(args.save_dir):
-    os.makedirs(args.save_dir)
+if not os.path.exists(args.model_dir):
+    os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
 with tf.Session() as sess:
@@ -205,7 +208,7 @@ with tf.Session() as sess:
         if epoch == 0:
             train_data.reset()  # rewind the iterator back to 0 to do one full epoch
             if args.load_params:
-                ckpt_file = args.save_dir + '/params_' + args.data_set + '.ckpt'
+                ckpt_file = args.model_dir + '/params_' + args.data_set + '.ckpt'
                 print('restoring parameters from', ckpt_file)
                 saver.restore(sess, ckpt_file)
             else:
@@ -248,10 +251,10 @@ with tf.Session() as sess:
             sample_x = np.concatenate(sample_x,axis=0)
             img_tile = plotting.img_tile(sample_x[:100], aspect_ratio=1.0, border_color=1.0, stretch=True)
             img = plotting.plot_img(img_tile, title=args.data_set + ' samples')
-            plotting.plt.savefig(os.path.join(args.save_dir,'%s_sample%d.png' % (args.data_set, epoch)))
+            plotting.plt.savefig(os.path.join(args.model_dir,'%s_sample%d.png' % (args.data_set, epoch)))
             plotting.plt.close('all')
-            np.savez(os.path.join(args.save_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
+            np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
 
             # save params
-            saver.save(sess, args.save_dir + '/params_' + args.data_set + '.ckpt')
-            np.savez(args.save_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
+            saver.save(sess, args.model_dir + '/params_' + args.data_set + '.ckpt')
+            np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
