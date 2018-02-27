@@ -87,41 +87,6 @@ def discretized_mix_logistic_loss(x,l,sum_all=True):
     else:
         return -tf.reduce_sum(log_sum_exp(log_probs),[1,2])
 
-def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
-    """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
-    xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,44,44,1)
-    ls = int_shape(l) # predicted distribution, e.g. (B,44,44,70)
-    nr_mix = int(ls[-1] / 3) # here and below: unpacking the params of the mixture of logistics
-    logit_probs = l[:,:,:,:nr_mix]
-    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*2])
-    means = l[:,:,:,:,:nr_mix]
-    log_scales = tf.maximum(l[:,:,:,:,nr_mix:], -7.)
-    print(means.shape)
-    print(log_scales.shape)
-    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
-    print(x.shape)
-    centered_x = x - means
-    inv_stdv = tf.exp(-log_scales)
-    plus_in = inv_stdv * (centered_x + 1./255.)
-    cdf_plus = tf.nn.sigmoid(plus_in)
-    min_in = inv_stdv * (centered_x - 1./255.)
-    cdf_min = tf.nn.sigmoid(min_in)
-    log_cdf_plus = plus_in - tf.nn.softplus(plus_in) # log probability for edge case of 0 (before scaling)
-    log_one_minus_cdf_min = -tf.nn.softplus(min_in) # log probability for edge case of 255 (before scaling)
-    cdf_delta = cdf_plus - cdf_min # probability for all other cases
-    mid_in = inv_stdv * centered_x
-    log_pdf_mid = mid_in - log_scales - 2.*tf.nn.softplus(mid_in) # log probability in the center of the bin, to be used in extreme cases (not actually used in our code)
-
-    log_probs = tf.where(x < -0.999, log_cdf_plus, tf.where(x > 0.999, log_one_minus_cdf_min, tf.where(cdf_delta > 1e-5, tf.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid - np.log(127.5))))
-    print(log_probs.shape)
-    print(logit_probs.shape)
-    print(log_prob_from_logits(logit_probs).shape)
-    log_probs = tf.reduce_sum(log_probs,3) + log_prob_from_logits(logit_probs)
-    if sum_all:
-        return -tf.reduce_sum(log_sum_exp(log_probs))
-    else:
-        return -tf.reduce_sum(log_sum_exp(log_probs),[1,2])
-
 def sample_from_discretized_mix_logistic(l,nr_mix):
     ls = int_shape(l)
     xs = ls[:-1] + [3]
@@ -143,6 +108,54 @@ def sample_from_discretized_mix_logistic(l,nr_mix):
     x1 = tf.minimum(tf.maximum(x[:,:,:,1] + coeffs[:,:,:,0]*x0, -1.), 1.)
     x2 = tf.minimum(tf.maximum(x[:,:,:,2] + coeffs[:,:,:,1]*x0 + coeffs[:,:,:,2]*x1, -1.), 1.)
     return tf.concat([tf.reshape(x0,xs[:-1]+[1]), tf.reshape(x1,xs[:-1]+[1]), tf.reshape(x2,xs[:-1]+[1])],3)
+
+def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
+    """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
+    xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,44,44,1)
+    ls = int_shape(l) # predicted distribution, e.g. (B,44,44,70)
+    nr_mix = int(ls[-1] / 3) # here and below: unpacking the params of the mixture of logistics
+    logit_probs = l[:,:,:,:nr_mix]
+    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*2])
+    means = l[:,:,:,:,:nr_mix]
+    log_scales = tf.maximum(l[:,:,:,:,nr_mix:], -7.)
+    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
+    centered_x = x - means
+    inv_stdv = tf.exp(-log_scales)
+    plus_in = inv_stdv * (centered_x + 1./255.)
+    cdf_plus = tf.nn.sigmoid(plus_in)
+    min_in = inv_stdv * (centered_x - 1./255.)
+    cdf_min = tf.nn.sigmoid(min_in)
+    log_cdf_plus = plus_in - tf.nn.softplus(plus_in) # log probability for edge case of 0 (before scaling)
+    log_one_minus_cdf_min = -tf.nn.softplus(min_in) # log probability for edge case of 255 (before scaling)
+    cdf_delta = cdf_plus - cdf_min # probability for all other cases
+    mid_in = inv_stdv * centered_x
+    log_pdf_mid = mid_in - log_scales - 2.*tf.nn.softplus(mid_in) # log probability in the center of the bin, to be used in extreme cases (not actually used in our code)
+
+    log_probs = tf.where(x < -0.999, log_cdf_plus, tf.where(x > 0.999, log_one_minus_cdf_min, tf.where(cdf_delta > 1e-5, tf.log(tf.maximum(cdf_delta, 1e-12)), log_pdf_mid - np.log(127.5))))
+
+    log_probs = tf.reduce_sum(log_probs,3) + log_prob_from_logits(logit_probs)
+    if sum_all:
+        return -tf.reduce_sum(log_sum_exp(log_probs))
+    else:
+        return -tf.reduce_sum(log_sum_exp(log_probs),[1,2])
+
+def sample_from_discretized_mix_logistic_greyscale(l,nr_mix):
+    ls = int_shape(l)
+    xs = ls[:-1] + [1]
+    # unpack parameters
+    logit_probs = l[:, :, :, :nr_mix]
+    l = tf.reshape(l[:, :, :, nr_mix:], xs + [nr_mix*2])
+    # sample mixture indicator from softmax
+    sel = tf.one_hot(tf.argmax(logit_probs - tf.log(-tf.log(tf.random_uniform(logit_probs.get_shape(), minval=1e-5, maxval=1. - 1e-5))), 3), depth=nr_mix, dtype=tf.float32)
+    sel = tf.reshape(sel, xs + [nr_mix])
+    # select logistic parameters
+    means = tf.reduce_sum(l[:,:,:,:,:nr_mix]*sel,4)
+    log_scales = tf.maximum(tf.reduce_sum(l[:,:,:,:,nr_mix:]*sel,4), -7.)
+    # sample from logistic & clip to interval
+    # we don't actually round to the nearest 8bit value when sampling
+    u = tf.random_uniform(means.get_shape(), minval=1e-5, maxval=1. - 1e-5)
+    x = means + tf.exp(log_scales)*(tf.log(u) - tf.log(1. - u))
+    return tf.minimum(tf.maximum(x[:,:,:,:], -1.), 1.)
 
 def get_var_maybe_avg(var_name, ema, **kwargs):
     ''' utility for retrieving polyak averaged params '''

@@ -80,9 +80,11 @@ if args.energy_distance:
 else:
     if obs_shape[2] == 1:
         loss_fun = nn.discretized_mix_logistic_loss_greyscale
+        sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
         var_per_logistic = 3
     else:
         loss_fun = nn.discretized_mix_logistic_loss
+        sample_fun = nn.sample_from_discretized_mix_logistic
         var_per_logistic = 10
 
 # data place holders
@@ -139,7 +141,7 @@ for i in range(args.nr_gpu):
         if args.energy_distance:
             new_x_gen.append(out[0])
         else:
-            new_x_gen.append(nn.sample_from_discretized_mix_logistic(out, args.nr_logistic_mix))
+            new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
 
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
