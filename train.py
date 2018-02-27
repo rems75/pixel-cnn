@@ -51,7 +51,7 @@ parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many 
 # reproducibility
 parser.add_argument('-s', '--seed', type=int, default=1, help='Random seed to use')
 args = parser.parse_args()
-print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty print args
+plotting._print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty plotting._print args
 
 # -----------------------------------------------------------------------------
 # fix random seed for reproducibility
@@ -209,14 +209,14 @@ with tf.Session() as sess:
             train_data.reset()  # rewind the iterator back to 0 to do one full epoch
             if args.load_params:
                 ckpt_file = args.model_dir + '/params_' + args.data_set + '.ckpt'
-                print('restoring parameters from', ckpt_file)
+                plotting._print('restoring parameters from', ckpt_file)
                 saver.restore(sess, ckpt_file)
             else:
-                print('initializing the model...')
+                plotting._print('initializing the model...')
                 sess.run(initializer)
                 feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
                 sess.run(init_pass, feed_dict)
-            print('starting training')
+            plotting._print('starting training')
 
         # train for one epoch
         train_losses = []
@@ -239,7 +239,7 @@ with tf.Session() as sess:
         test_bpd.append(test_loss_gen)
 
         # log progress to console
-        print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
+        plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
         sys.stdout.flush()
 
         if epoch % args.save_interval == 0:

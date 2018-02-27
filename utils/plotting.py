@@ -3,6 +3,10 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
+def _print(s):
+  print(s)
+  sys.stdout.flush()
+
 # Plot image examples.
 def plot_img(img, title=None):
     plt.figure()
@@ -79,7 +83,7 @@ def conv_filter_tile(filters):
         filters = np.resize(filters, (n_filters*n_channels, height, width))
     filters = img_stretch(filters)
     return img_tile(filters, tile_shape=tile_shape)
-    
+
 def scale_to_unit_interval(ndar, eps=1e-8):
   """ Scales all values in the ndarray ndar to be between 0 and 1 """
   ndar = ndar.copy()
