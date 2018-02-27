@@ -3,8 +3,8 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-def _print(s):
-  print(s)
+def _print(*s):
+  print(" ".join(s))
   sys.stdout.flush()
 
 # Plot image examples.
