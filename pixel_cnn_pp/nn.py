@@ -89,22 +89,17 @@ def discretized_mix_logistic_loss(x,l,sum_all=True):
 
 def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
     """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
-    xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,32,32,3)
-    ls = int_shape(l) # predicted distribution, e.g. (B,32,32,100)
-    nr_mix = int(ls[-1] / 10) # here and below: unpacking the params of the mixture of logistics
+    xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,44,44,1)
+    ls = int_shape(l) # predicted distribution, e.g. (B,44,44,70)
+    nr_mix = int(ls[-1] / 7) # here and below: unpacking the params of the mixture of logistics
     logit_probs = l[:,:,:,:nr_mix]
-    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*9])
+    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*6])
     means = l[:,:,:,:,:nr_mix*3]
-    log_scales = tf.maximum(l[:,:,:,:,3*nr_mix:6*nr_mix], -7.)
-    coeffs = tf.nn.tanh(l[:,:,:,:,6*nr_mix:9*nr_mix])
-    # x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
-    x = tf.reshape(x, xs + [1])
+    log_scales = tf.maximum(l[:,:,:,:,3*nr_mix:], -7.)
+    print(means.shape)
+    print(log_scales.shape)
+    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [3*nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
     print(x.shape)
-    x = x + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
-    print(x.shape)
-    m2 = tf.reshape(means[:,:,:,1,:] + coeffs[:,:,:,0,:] * x[:,:,:,0,:], [xs[0],xs[1],xs[2],1,nr_mix])
-    m3 = tf.reshape(means[:,:,:,2,:] + coeffs[:,:,:,1,:] * x[:,:,:,0,:] + coeffs[:,:,:,2,:] * x[:,:,:,1,:], [xs[0],xs[1],xs[2],1,nr_mix])
-    means = tf.concat([tf.reshape(means[:,:,:,0,:], [xs[0],xs[1],xs[2],1,nr_mix]), m2, m3],3)
     centered_x = x - means
     inv_stdv = tf.exp(-log_scales)
     plus_in = inv_stdv * (centered_x + 1./255.)

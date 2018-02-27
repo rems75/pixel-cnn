@@ -107,8 +107,10 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
                 return x_sample
 
             else:
+                print(ul.shape)
                 x_out = nn.nin(tf.nn.elu(ul),10*nr_logistic_mix)
-
+                print(x_out.shape)
+                sys.exit()
                 assert len(u_list) == 0
                 assert len(ul_list) == 0
 
