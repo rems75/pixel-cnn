@@ -80,8 +80,10 @@ if args.energy_distance:
 else:
     if obs_shape[2] == 1:
         loss_fun = nn.discretized_mix_logistic_loss_greyscale
+        var_per_logistic = 7
     else:
         loss_fun = nn.discretized_mix_logistic_loss
+        var_per_logistic = 10
 
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
@@ -102,7 +104,7 @@ else:
     hs = h_sample
 
 # create the model
-model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance }
+model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
 model = tf.make_template('model', model_spec)
 
 # run once for data dependent initialization of parameters

@@ -7,7 +7,7 @@ import tensorflow as tf
 from tensorflow.contrib.framework.python.ops import arg_scope
 import pixel_cnn_pp.nn as nn
 
-def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_filters=160, nr_logistic_mix=10, resnet_nonlinearity='concat_elu', energy_distance=False):
+def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_filters=160, nr_logistic_mix=10, resnet_nonlinearity='concat_elu', energy_distance=False, var_per_logistic=10):
     """
     We receive a Tensor x of shape (N,H,W,D1) (e.g. (12,32,32,3)) and produce
     a Tensor x_out of shape (N,H,W,D2) (e.g. (12,32,32,100)), where each fiber
@@ -107,10 +107,7 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
                 return x_sample
 
             else:
-                print(ul.shape)
-                x_out = nn.nin(tf.nn.elu(ul),10*nr_logistic_mix)
-                print(x_out.shape)
-                sys.exit()
+                x_out = nn.nin(tf.nn.elu(ul),var_per_logistic*nr_logistic_mix)
                 assert len(u_list) == 0
                 assert len(ul_list) == 0
 
