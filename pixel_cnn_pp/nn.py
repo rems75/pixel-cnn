@@ -97,12 +97,13 @@ def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
     means = l[:,:,:,:,:nr_mix*3]
     log_scales = tf.maximum(l[:,:,:,:,3*nr_mix:6*nr_mix], -7.)
     coeffs = tf.nn.tanh(l[:,:,:,:,6*nr_mix:9*nr_mix])
-    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
-    print(tf.zeros(xs + [nr_mix]).shape)
-    print(xs)
+    # x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
+    x = tf.reshape(x, xs + [1])
     print(x.shape)
-    m2 = tf.reshape(means[:,:,:,1,:] + coeffs[:, :, :, 0, :] * x[:, :, :, 0, :], [xs[0],xs[1],xs[2],1,nr_mix])
-    m3 = tf.reshape(means[:, :, :, 2, :] + coeffs[:, :, :, 1, :] * x[:, :, :, 0, :] + coeffs[:, :, :, 2, :] * x[:, :, :, 1, :], [xs[0],xs[1],xs[2],1,nr_mix])
+    x = x + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
+    print(x.shape)
+    m2 = tf.reshape(means[:,:,:,1,:] + coeffs[:,:,:,0,:] * x[:,:,:,0,:], [xs[0],xs[1],xs[2],1,nr_mix])
+    m3 = tf.reshape(means[:,:,:,2,:] + coeffs[:,:,:,1,:] * x[:,:,:,0,:] + coeffs[:,:,:,2,:] * x[:,:,:,1,:], [xs[0],xs[1],xs[2],1,nr_mix])
     means = tf.concat([tf.reshape(means[:,:,:,0,:], [xs[0],xs[1],xs[2],1,nr_mix]), m2, m3],3)
     centered_x = x - means
     inv_stdv = tf.exp(-log_scales)
