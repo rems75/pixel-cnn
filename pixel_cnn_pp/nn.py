@@ -91,14 +91,14 @@ def discretized_mix_logistic_loss_greyscale(x,l,sum_all=True):
     """ log-likelihood for mixture of discretized logistics, assumes the data has been rescaled to [-1,1] interval """
     xs = int_shape(x) # true image (i.e. labels) to regress to, e.g. (B,44,44,1)
     ls = int_shape(l) # predicted distribution, e.g. (B,44,44,70)
-    nr_mix = int(ls[-1] / 7) # here and below: unpacking the params of the mixture of logistics
+    nr_mix = int(ls[-1] / 3) # here and below: unpacking the params of the mixture of logistics
     logit_probs = l[:,:,:,:nr_mix]
-    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*6])
-    means = l[:,:,:,:,:nr_mix*3]
-    log_scales = tf.maximum(l[:,:,:,:,3*nr_mix:], -7.)
+    l = tf.reshape(l[:,:,:,nr_mix:], xs + [nr_mix*2])
+    means = l[:,:,:,:,:nr_mix]
+    log_scales = tf.maximum(l[:,:,:,:,nr_mix:], -7.)
     print(means.shape)
     print(log_scales.shape)
-    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [3*nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
+    x = tf.reshape(x, xs + [1]) + tf.zeros(xs + [nr_mix]) # here and below: getting the means and adjusting them based on preceding sub-pixels
     print(x.shape)
     centered_x = x - means
     inv_stdv = tf.exp(-log_scales)
