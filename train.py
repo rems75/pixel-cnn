@@ -239,6 +239,7 @@ with tf.Session() as sess:
         test_loss_gen = np.mean(test_losses)
         test_bpd.append(test_loss_gen)
         plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
+        sys.exit()
 
         # log progress to console
         plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
