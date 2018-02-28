@@ -49,7 +49,7 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
       downsampled, actions, rewards, terms = pickle.load(f)
     # Add a bit of black around downsampled states so there size is a multiple of 4.
     downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 42, 2))), axis=2)
-    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)
+    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)[:100]
     states = downsampled.reshape(list(downsampled.shape)+[1])
     dataset_size = states.shape[0]
     train_set_size = 9 * int(dataset_size / 10)
