@@ -304,8 +304,11 @@ def deconv2d(x, num_filters, filter_size=[3,3], stride=[1,1], pad='SAME', nonlin
 def nin(x, num_units, **kwargs):
     """ a network in network layer (1x1 CONV) """
     s = int_shape(x)
+    print(s)
     x = tf.reshape(x, [np.prod(s[:-1]),s[-1]])
+    print(x.shape)
     x = dense(x, num_units, **kwargs)
+    print(x.shape)
     return tf.reshape(x, s[:-1]+[num_units])
 
 ''' meta-layer consisting of multiple base layers '''
