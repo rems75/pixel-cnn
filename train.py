@@ -228,6 +228,7 @@ with tf.Session() as sess:
             l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
             train_losses.append(l)
         train_loss_gen = np.mean(train_losses)
+        plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
         # compute likelihood over test data
         test_losses = []
@@ -237,6 +238,7 @@ with tf.Session() as sess:
             test_losses.append(l)
         test_loss_gen = np.mean(test_losses)
         test_bpd.append(test_loss_gen)
+        plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
         # log progress to console
         plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
