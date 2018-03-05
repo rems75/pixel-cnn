@@ -37,6 +37,7 @@ parser.add_argument('-ed', '--energy_distance', dest='energy_distance', action='
 # optimization
 parser.add_argument('-l', '--learning_rate', type=float, default=0.001, help='Base learning rate')
 parser.add_argument('-e', '--lr_decay', type=float, default=0.999995, help='Learning rate decay, applied every step of the optimization')
+parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size during training per GPU')
 parser.add_argument('-p', '--dropout_p', type=float, default=0.5, help='Dropout strength (i.e. 1 - keep_prob). 0 = No dropout, higher = more dropout.')
 parser.add_argument('-x', '--max_epochs', type=int, default=5000, help='How many epochs to run in total?')
@@ -85,22 +86,29 @@ else:
         var_per_logistic = 10
 
 # data place holders
+x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
 xs = tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape)
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
     num_labels = data.get_num_labels()
+    y_init = tf.placeholder(tf.int32, shape=(args.init_batch_size,))
+    h_init = tf.one_hot(y_init, num_labels)
     y_sample = np.mod(np.arange(args.batch_size), num_labels)
     h_sample = tf.one_hot(tf.Variable(y_sample, trainable=False), num_labels)
     ys = tf.placeholder(tf.int32, shape=(args.batch_size,))
     hs = tf.one_hot(ys, num_labels)
 else:
+    h_init = None
     h_sample = None
     hs = h_sample
 
 # create the model
 model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
 model = tf.make_template('model', model_spec)
+
+# run once for data dependent initialization of parameters
+init_pass = model(x_init, h_init, init=True, dropout_p=args.dropout_p, **model_opt)
 
 # keep track of moving average
 all_params = tf.trainable_variables()
@@ -119,16 +127,13 @@ with tf.device('/gpu:0'):
     grads = tf.gradients(loss_gen, all_params, colocate_gradients_with_ops=True)
 
     # test
-    print(xs)
-    print(hs)
-    print(ema)
-    print(model_opt)
-    out = model(xs, hs, ema=None, dropout_p=0., **model_opt)
+    out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
     # out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
     loss_gen_test = loss_fun(xs, out)
 
     # sample
     out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
+    # out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
     if args.energy_distance:
         new_x_gen.append(out[0])
     else:
