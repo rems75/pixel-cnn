@@ -112,8 +112,6 @@ ema_params = [ema.average(p) for p in all_params]
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
     # train
-    print(xs)
-    print(hs)
     out = model(xs, hs, ema=None, dropout_p=args.dropout_p, **model_opt)
     loss_gen = loss_fun(tf.stop_gradient(xs), out)
 
@@ -123,6 +121,7 @@ with tf.device('/gpu:0'):
     # test
     print(xs)
     print(hs)
+    print(ema)
     out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
     loss_gen_test = loss_fun(xs, out)
 
