@@ -140,6 +140,8 @@ with tf.device('/gpu:0'):
         new_x_gen = sample_fun(out, args.nr_logistic_mix)
 
     # training op
+    print(grads)
+    print(tf.reduce_sum(grads, 0))
     optimizer = tf.group(nn.adam_updates(all_params, tf.reduce_sum(grads, 0), lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
 
 # convert loss to bits/dim
