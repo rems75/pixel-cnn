@@ -122,6 +122,7 @@ with tf.device('/gpu:0'):
     print(xs)
     print(hs)
     print(ema)
+    print(model_opt)
     out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
     loss_gen_test = loss_fun(xs, out)
 
