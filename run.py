@@ -135,9 +135,9 @@ with tf.device('/gpu:0'):
     out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
     # out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
     if args.energy_distance:
-        new_x_gen.append(out[0])
+        new_x_gen = out[0]
     else:
-        new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
+        new_x_gen = sample_fun(out, args.nr_logistic_mix)
 
     # training op
     optimizer = tf.group(nn.adam_updates(all_params, tf.reduce_sum(grads, 0), lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
