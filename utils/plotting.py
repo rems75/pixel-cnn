@@ -9,9 +9,10 @@ def _print(*s):
   sys.stdout.flush()
 
 # Plot image examples.
-def plot_img(img, title=None):
+def plot_img(img, title=None, show=False):
     plt.figure()
-    plt.imshow(img, interpolation='nearest')
+    if show:
+      plt.imshow(img, interpolation='nearest')
     if title is not None:
         plt.title(title)
     plt.axis('off')

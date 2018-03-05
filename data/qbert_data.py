@@ -60,6 +60,9 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     elif subset == 'test':
         _print("The test set size is {}".format(test_set_size))
         return states[train_set_size:], actions[train_set_size:]
+    elif subset == 'all':
+        _print("The data set size is {}".format(dataset_size))
+        return states, actions
     else:
         raise ValueError("The subset has to be train or test")
 
@@ -96,6 +99,9 @@ class DataLoader(object):
 
     def get_observation_size(self):
         return self.data.shape[1:]
+
+    def get_num_obs(self):
+        return self.data.shape[0]
 
     def get_num_labels(self):
         return np.amax(self.labels) + 1
