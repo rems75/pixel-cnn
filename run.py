@@ -181,11 +181,10 @@ with tf.Session() as sess:
     begin = time.time()
 
     # init
-    if epoch == 0:
-        data.reset()  # rewind the iterator back to 0 to do one full epoch
-        ckpt_file = args.model_dir + '/params_' + args.data_set + '.ckpt'
-        plotting._print('restoring parameters from', ckpt_file)
-        saver.restore(sess, ckpt_file)
+    data.reset()  # rewind the iterator back to 0 to do one full epoch
+    ckpt_file = args.model_dir + '/params_' + args.data_set + '.ckpt'
+    plotting._print('restoring parameters from', ckpt_file)
+    saver.restore(sess, ckpt_file)
 
     # compute likelihood over data
     likelihoods = []
