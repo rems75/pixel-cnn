@@ -134,7 +134,8 @@ for i in range(args.nr_gpu):
 
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
-        loss_gen_test.append(loss_fun(xs[i], out))
+        loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
+        print(loss_gen_test[0].shape)
 
         # sample
         out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
@@ -211,8 +212,8 @@ with tf.Session() as sess:
     likelihoods = []
     for d in data:
         feed_dict = make_feed_dict(d)
-        l = sess.run(loss_gen_test, feed_dict)
-        likelihoods.extend(1/np.exp(l))
-        print(1 / np.exp(l) * data.get_num_obs())
+        l = sess.run(loss_gen_test, feed_dict)[0]
+        # likelihoods.extend(1/np.exp(l))
+        print(l, np.exp(np.log(5e5) - l) * 1e5)
     plotting._print("Run time = %ds" % (time.time()-begin))
 
