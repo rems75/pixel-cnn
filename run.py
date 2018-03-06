@@ -185,6 +185,8 @@ def make_feed_dict(data, init=False):
         if y is not None:
             feed_dict.update({y_init: y})
     else:
+        print(x.shape)
+        print(args.nr_gpu)
         x = np.split(x, args.nr_gpu)
         feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
         if y is not None:
