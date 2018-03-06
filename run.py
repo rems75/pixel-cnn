@@ -202,10 +202,9 @@ with tf.Session() as sess:
 
     # init
     data.reset()  # rewind the iterator back to 0 to do one full epoch
-    if args.load_params:
-        ckpt_file = os.path.join(args.model_dir, 'params_' + args.data_set + '.ckpt')
-        plotting._print('restoring parameters from', ckpt_file)
-        saver.restore(sess, ckpt_file)
+    ckpt_file = os.path.join(args.model_dir, 'params_' + args.data_set + '.ckpt')
+    plotting._print('restoring parameters from', ckpt_file)
+    saver.restore(sess, ckpt_file)
     plotting._print('starting training')
 
     # compute likelihood over data
