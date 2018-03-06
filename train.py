@@ -137,8 +137,10 @@ for i in range(args.nr_gpu):
 
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
-        loss_gen_test.append(loss_fun(xs[i], out))
-
+        # loss_gen_test.append(loss_fun(xs[i], out))
+        loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
+        print(loss_gen_test[0].shape)
+        sys.exit()
         # sample
         out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
         if args.energy_distance:
