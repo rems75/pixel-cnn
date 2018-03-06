@@ -70,7 +70,7 @@ elif args.data_set == 'qbert':
     DataLoader = qbert_data.DataLoader
 else:
     raise("unsupported dataset")
-data = DataLoader(args.data_dir, 'all', args.batch_size, rng=rng, shuffle=False, return_labels=True)
+data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
