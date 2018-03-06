@@ -208,7 +208,7 @@ with tf.Session() as sess:
         if epoch == 0:
             train_data.reset()  # rewind the iterator back to 0 to do one full epoch
             if args.load_params:
-                ckpt_file = args.model_dir + '/params_' + args.data_set + '.ckpt'
+                ckpt_file = os.path.join(args.model_dir, '/params_' + args.data_set + '.ckpt')
                 plotting._print('restoring parameters from', ckpt_file)
                 saver.restore(sess, ckpt_file)
             else:
