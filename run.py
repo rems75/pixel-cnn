@@ -212,7 +212,7 @@ with tf.Session() as sess:
     for d in data:
         feed_dict = make_feed_dict(d)
         l = sess.run(loss_gen_test, feed_dict)
-        likelihoods.extend(np.exp(-l))
-        print(np.exp(-l) * data.get_num_obs())
+        likelihoods.extend(1/np.exp(l))
+        print(1 / np.exp(l) * data.get_num_obs())
     plotting._print("Run time = %ds" % (time.time()-begin))
 
