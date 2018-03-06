@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 """
-Runs a Pixel-CNN++ generative model on CIFAR-10 or Tiny ImageNet data.
+Trains a Pixel-CNN++ generative model on CIFAR-10 or Tiny ImageNet data.
+Uses multiple GPUs, indicated by the flag --nr_gpu
 
 Example usage:
-CUDA_VISIBLE_DEVICES=0,1,2,3 python train_double_cnn.py
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_double_cnn.py --nr_gpu 4
 """
 
 import os
@@ -37,10 +38,11 @@ parser.add_argument('-ed', '--energy_distance', dest='energy_distance', action='
 # optimization
 parser.add_argument('-l', '--learning_rate', type=float, default=0.001, help='Base learning rate')
 parser.add_argument('-e', '--lr_decay', type=float, default=0.999995, help='Learning rate decay, applied every step of the optimization')
-parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size during training per GPU')
+parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
 parser.add_argument('-p', '--dropout_p', type=float, default=0.5, help='Dropout strength (i.e. 1 - keep_prob). 0 = No dropout, higher = more dropout.')
 parser.add_argument('-x', '--max_epochs', type=int, default=5000, help='How many epochs to run in total?')
+parser.add_argument('-g', '--nr_gpu', type=int, default=2, help='How many GPUs to distribute the training across?')
 # evaluation
 parser.add_argument('--polyak_decay', type=float, default=0.9995, help='Exponential decay rate of the sum of previous model iterates during Polyak averaging')
 parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many batches of samples to output.')
@@ -87,20 +89,20 @@ else:
 
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
-xs = tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape)
+xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in range(args.nr_gpu)]
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
     num_labels = data.get_num_labels()
     y_init = tf.placeholder(tf.int32, shape=(args.init_batch_size,))
     h_init = tf.one_hot(y_init, num_labels)
-    y_sample = np.mod(np.arange(args.batch_size), num_labels)
-    h_sample = tf.one_hot(tf.Variable(y_sample, trainable=False), num_labels)
-    ys = tf.placeholder(tf.int32, shape=(args.batch_size,))
-    hs = tf.one_hot(ys, num_labels)
+    y_sample = np.split(np.mod(np.arange(args.batch_size*args.nr_gpu), num_labels), args.nr_gpu)
+    h_sample = [tf.one_hot(tf.Variable(y_sample[i], trainable=False), num_labels) for i in range(args.nr_gpu)]
+    ys = [tf.placeholder(tf.int32, shape=(args.batch_size,)) for i in range(args.nr_gpu)]
+    hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
 else:
     h_init = None
-    h_sample = None
+    h_sample = [None] * args.nr_gpu
     hs = h_sample
 
 # create the model
@@ -116,43 +118,54 @@ ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
 maintain_averages_op = tf.group(ema.apply(all_params))
 ema_params = [ema.average(p) for p in all_params]
 
+# get loss gradients over multiple GPUs + sampling
+grads = []
+loss_gen = []
+loss_gen_test = []
+new_x_gen = []
+for i in range(args.nr_gpu):
+    with tf.device('/gpu:%d' % i):
+        # train
+        out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
+        loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
+
+        # gradients
+        grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
+
+        # test
+        out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
+        loss_gen_test.append(loss_fun(xs[i], out))
+
+        # sample
+        out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
+        if args.energy_distance:
+            new_x_gen.append(out[0])
+        else:
+            new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
+
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
-    # train
-    out = model(xs, hs, ema=None, dropout_p=args.dropout_p, **model_opt)
-    loss_gen = loss_fun(tf.stop_gradient(xs), out)
-
-    # gradients
-    grads = tf.gradients(loss_gen, all_params, colocate_gradients_with_ops=True)
-
-    # test
-    out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
-    # out = model(xs, hs, ema=ema, dropout_p=0., **model_opt)
-    loss_gen_test = loss_fun(xs, out)
-
-    # sample
-    out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
-    # out = model(xs, h_sample, ema=ema, dropout_p=0, **model_opt)
-    if args.energy_distance:
-        new_x_gen = out[0]
-    else:
-        new_x_gen = sample_fun(out, args.nr_logistic_mix)
-
+    for i in range(1,args.nr_gpu):
+        loss_gen[0] += loss_gen[i]
+        loss_gen_test[0] += loss_gen_test[i]
+        for j in range(len(grads[0])):
+            grads[0][j] += grads[i][j]
     # training op
-    optimizer = tf.group(nn.adam_updates(all_params, grads, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
 
 # convert loss to bits/dim
-bits_per_dim = loss_gen/(np.log(2.)*np.prod(obs_shape)*args.batch_size)
-bits_per_dim_test = loss_gen_test/(np.log(2.)*np.prod(obs_shape)*args.batch_size)
+bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
+bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 
 # sample from the model
 def sample_from_model(sess):
-    x_gen = np.zeros((args.batch_size,) + obs_shape, dtype=np.float32)
+    x_gen = [np.zeros((args.batch_size,) + obs_shape, dtype=np.float32) for i in range(args.nr_gpu)]
     for yi in range(obs_shape[0]):
         for xi in range(obs_shape[1]):
-            new_x_gen_np = sess.run(new_x_gen, {xs: x_gen})
-            x_gen[:,yi,xi,:] = new_x_gen_np[:,yi,xi,:]
+            new_x_gen_np = sess.run(new_x_gen, {xs[i]: x_gen[i] for i in range(args.nr_gpu)})
+            for i in range(args.nr_gpu):
+                x_gen[i][:,yi,xi,:] = new_x_gen_np[i][:,yi,xi,:]
     return np.concatenate(x_gen, axis=0)
 
 # init & save
@@ -160,16 +173,23 @@ initializer = tf.global_variables_initializer()
 saver = tf.train.Saver()
 
 # turn numpy inputs into feed_dict for use with tensorflow
-def make_feed_dict(data):
+def make_feed_dict(data, init=False):
     if type(data) is tuple:
         x,y = data
     else:
         x = data
         y = None
     x = np.cast[np.float32]((x - 127.5) / 127.5) # input to pixelCNN is scaled from uint8 [0,255] to float in range [-1,1]
-    feed_dict = {xs: x}
-    if y is not None:
-        feed_dict.update({ys: y})
+    if init:
+        feed_dict = {x_init: x}
+        if y is not None:
+            feed_dict.update({y_init: y})
+    else:
+        x = np.split(x, args.nr_gpu)
+        feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
+        if y is not None:
+            y = np.split(y, args.nr_gpu)
+            feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
     return feed_dict
 
 # //////////// perform training //////////////
@@ -182,29 +202,18 @@ with tf.Session() as sess:
 
     # init
     data.reset()  # rewind the iterator back to 0 to do one full epoch
-    ckpt_file = os.path.join(args.model_dir, '/params_' + args.data_set + '.ckpt')
-    plotting._print('restoring parameters from', ckpt_file)
-    saver.restore(sess, ckpt_file)
+    if args.load_params:
+        ckpt_file = os.path.join(args.model_dir, 'params_' + args.data_set + '.ckpt')
+        plotting._print('restoring parameters from', ckpt_file)
+        saver.restore(sess, ckpt_file)
+    plotting._print('starting training')
 
     # compute likelihood over data
     likelihoods = []
     for d in data:
         feed_dict = make_feed_dict(d)
-        l = sess.run(loss_gen_test, feed_dict)
+        l = sess.run(loss_gen_test, feed_dict)[0]
         likelihoods.append(np.exp(-l))
         print(np.exp(-l) * data.get_num_obs())
     plotting._print("Run time = %ds" % (time.time()-begin))
 
-    # # generate samples from the model
-    # sample_x = []
-    # for i in range(args.num_samples):
-    #     sample_x.append(sample_from_model(sess))
-    # sample_x = np.concatenate(sample_x,axis=0)
-    # img_tile = plotting.img_tile(sample_x[:100], aspect_ratio=1.0, border_color=1.0, stretch=True)
-    # img = plotting.plot_img(img_tile, title=args.data_set + ' samples')
-    # plotting.plt.savefig(os.path.join(args.model_dir,'%s_sample%d.png' % (args.data_set, epoch)))
-    # plotting.plt.close('all')
-    # np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
-
-    # save params
-    # np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
