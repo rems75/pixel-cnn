@@ -70,7 +70,7 @@ elif args.data_set == 'qbert':
     DataLoader = qbert_data.DataLoader
 else:
     raise("unsupported dataset")
-data = DataLoader(args.data_dir, 'all', 1, rng=rng, shuffle=False, return_labels=True)
+data = DataLoader(args.data_dir, 'all', args.batch_size, rng=rng, shuffle=False, return_labels=True)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -148,7 +148,7 @@ tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
     for i in range(1,args.nr_gpu):
         loss_gen[0] += loss_gen[i]
-        loss_gen_test[0] += loss_gen_test[i]
+        # loss_gen_test[0] += loss_gen_test[i]
         for j in range(len(grads[0])):
             grads[0][j] += grads[i][j]
     # training op
@@ -185,8 +185,6 @@ def make_feed_dict(data, init=False):
         if y is not None:
             feed_dict.update({y_init: y})
     else:
-        print(x.shape)
-        print(args.nr_gpu)
         x = np.split(x, args.nr_gpu)
         feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
         if y is not None:
@@ -213,8 +211,8 @@ with tf.Session() as sess:
     likelihoods = []
     for d in data:
         feed_dict = make_feed_dict(d)
-        l = sess.run(loss_gen_test, feed_dict)[0]
-        likelihoods.append(np.exp(-l))
+        l = sess.run(loss_gen_test, feed_dict)
+        likelihoods.extend(np.exp(-l))
         print(np.exp(-l) * data.get_num_obs())
     plotting._print("Run time = %ds" % (time.time()-begin))
 
