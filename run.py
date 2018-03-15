@@ -132,11 +132,10 @@ for i in range(args.nr_gpu):
         # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
-        print(loss_gen[i])
+
         # gradients
         grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
-        print(grads[i])
-        sys.exit()
+
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
         loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
@@ -176,7 +175,7 @@ def sample_from_model(sess):
 
 # init & save
 initializer = tf.global_variables_initializer()
-saver = tf.train.Saver()
+saver = tf.train.Saver(reshape=True)
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
