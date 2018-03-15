@@ -106,7 +106,8 @@ class DataLoader(object):
 
         self.p = 0 # pointer to where we are in iteration
         self.rng = np.random.RandomState(1) if rng is None else rng
-
+        _print(np.random.randint(10))
+        sys.exit()
     def get_observation_size(self):
         return self.data.shape[1:]
 
