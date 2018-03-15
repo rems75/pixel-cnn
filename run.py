@@ -129,7 +129,7 @@ loss_gen_test = []
 new_x_gen = []
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
-        # train
+        # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
         print(loss_gen[i])
