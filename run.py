@@ -51,6 +51,7 @@ parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many 
 parser.add_argument('-s', '--seed', type=int, default=1, help='Random seed to use')
 # action for count
 parser.add_argument('--action', type=int, default=None, help='Action to compute the counts for')
+parser.add_argument('--compute_pseudo_counts', action='store_true', help='Compute pseudo counts')
 args = parser.parse_args()
 plotting._print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty plotting._print args
 
@@ -82,7 +83,7 @@ if args.energy_distance:
     loss_fun = nn.energy_distance
 else:
     if obs_shape[2] == 1:
-        loss_fun = nn.discretized_mix_logistic_loss_greyscale
+        loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=False)
         sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
         var_per_logistic = 3
     else:
@@ -131,10 +132,11 @@ for i in range(args.nr_gpu):
         # train
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
-
+        print(loss_gen[i])
         # gradients
         grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
-
+        print(grads[i])
+        sys.exit()
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
         loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
@@ -223,7 +225,15 @@ with tf.Session() as sess:
     with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
         pickle.dump(likelihoods, f)
 
-    # # generate samples from the model
-    # sample_x = sample_from_model(sess)
-    # with open(os.path.join(args.model_dir,"samples.pkl"), 'wb') as f:
-    #     pickle.dump(sample_x, f)
+    # compute pseudo-counts
+    if args.compute_pseudo_counts:
+        likelihoods = []
+        for d in data:
+            feed_dict = make_feed_dict(d)
+            l = np.array(sess.run(loss_gen_test, feed_dict))
+            l = np.reshape(l,(-1))
+            likelihoods.extend(np.exp(0 - l))
+            # print(l, np.exp(0 - l))
+        plotting._print("Run time = %ds" % (time.time()-begin))
+        with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+            pickle.dump(likelihoods, f)
