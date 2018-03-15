@@ -83,7 +83,7 @@ if args.energy_distance:
     loss_fun = nn.energy_distance
 else:
     if obs_shape[2] == 1:
-        loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=False)
+        loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=True)
         sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
         var_per_logistic = 3
     else:
