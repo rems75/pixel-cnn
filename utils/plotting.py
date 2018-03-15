@@ -2,11 +2,23 @@ import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
-import sys
+import os, sys
 
 def _print(*s):
   print(" ".join(s))
   sys.stdout.flush()
+
+def load_and_plot(path, filename):
+
+  npzfile = np.load(os.path.join(path, filename))
+  sample_x = np.reshape(npzfile['arr_0'], npzfile['arr_0'].shape[:3])
+  print(sample_x.shape)
+  plt.figure()
+  plt.gray()
+  plt.imshow(sample_x[0], interpolation='nearest')
+  plt.axis('off')
+  plt.tight_layout()
+  plt.show()
 
 # Plot image examples.
 def plot_img(img, title=None, show=False):
@@ -198,3 +210,6 @@ def tile_raster_images(X, img_shape, tile_shape, tile_spacing=(0, 0),
                       = this_img * (255 if output_pixel_vals else 1)
       return out_array
 
+if __name__ == '__main__':
+
+  load_and_plot('../save/60_filters', 'qbert_sample140.npz')

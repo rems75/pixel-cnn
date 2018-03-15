@@ -13,6 +13,7 @@ import sys
 import json
 import argparse
 import time
+import pickle
 
 import numpy as np
 import tensorflow as tf
@@ -48,6 +49,8 @@ parser.add_argument('--polyak_decay', type=float, default=0.9995, help='Exponent
 parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many batches of samples to output.')
 # reproducibility
 parser.add_argument('-s', '--seed', type=int, default=1, help='Random seed to use')
+# action for count
+parser.add_argument('--action', type=int, default=None, help='Action to compute the counts for')
 args = parser.parse_args()
 plotting._print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty plotting._print args
 
@@ -70,7 +73,7 @@ elif args.data_set == 'qbert':
     DataLoader = qbert_data.DataLoader
 else:
     raise("unsupported dataset")
-data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True)
+data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -212,8 +215,15 @@ with tf.Session() as sess:
     likelihoods = []
     for d in data:
         feed_dict = make_feed_dict(d)
-        l = sess.run(loss_gen_test, feed_dict)[0]
-        # likelihoods.extend(1/np.exp(l))
-        print(l, np.exp(np.log(5e5) - l) * 1e5)
+        l = np.array(sess.run(loss_gen_test, feed_dict))
+        l = np.reshape(l,(-1))
+        likelihoods.extend(np.exp(0 - l))
+        # print(l, np.exp(0 - l))
     plotting._print("Run time = %ds" % (time.time()-begin))
+    with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+        pickle.dump(likelihoods, f)
 
+    # # generate samples from the model
+    # sample_x = sample_from_model(sess)
+    # with open(os.path.join(args.model_dir,"samples.pkl"), 'wb') as f:
+    #     pickle.dump(sample_x, f)

@@ -32,7 +32,7 @@ Loads the batch of transitions and creates transitions objects from them.
 (s, a, r, s')
 '''
 def load(path, transitions_filenumber=-1, transitions_filename="transitions",
-         counts_filename="count", models_filename="models", subset='train'):
+         counts_filename="count", models_filename="models", subset='train', extend_to=1, action=None):
     '''
     It is used to compute the density of state-action pairs.
     rho(s, a) = rho_a(s) * marginal(a)
@@ -49,20 +49,29 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
       downsampled, actions, rewards, terms = pickle.load(f)
     # Add a bit of black around downsampled states so their size is a multiple of 4.
     downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 42, 2))), axis=2)
-    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)[:10000]
-    states = downsampled.reshape(list(downsampled.shape)+[1])
+    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)
+    # downsampled = downsampled[[1,106,185,128462,358462]]
+    # actions = [1,3,5,0,2]
+
+    if subset == 'all':
+        new_actions = action + np.zeros(actions.shape, dtype=np.int32) if action is not None else actions
+        extra = int(np.ceil(downsampled.shape[0]/extend_to)*extend_to - downsampled.shape[0])
+        downsampled = np.concatenate((downsampled, np.zeros((extra, 44, 44))), axis=0)
+        new_actions = np.concatenate((new_actions, np.zeros((extra), dtype=np.int32)), axis=0)
+    states = downsampled.reshape(downsampled.shape+(1,))
     dataset_size = states.shape[0]
-    train_set_size = 9 * int(dataset_size / 10)
+    # train_set_size = 9 * int(dataset_size / 10)
+    train_set_size = dataset_size
     test_set_size = dataset_size - train_set_size
     if subset == 'train':
         _print("The train set size is {}".format(train_set_size))
-        return states[:train_set_size], actions[:train_set_size]
+        return states[:train_set_size], actions[:train_set_size], actions[:train_set_size]
     elif subset == 'test':
         _print("The test set size is {}".format(test_set_size))
-        return states[train_set_size:], actions[train_set_size:]
+        return states[train_set_size:], actions[train_set_size:], actions[train_set_size:]
     elif subset == 'all':
         _print("The data set size is {}".format(dataset_size))
-        return states, actions
+        return states, new_actions, actions
     else:
         raise ValueError("The subset has to be train or test")
 
@@ -77,7 +86,7 @@ def get_filename(path, transitions_filename, transitions_filenumber, counts_file
 class DataLoader(object):
     """ an object that generates batches of CIFAR-10 data for training """
 
-    def __init__(self, data_dir, subset, batch_size, rng=None, shuffle=False, return_labels=False):
+    def __init__(self, data_dir, subset, batch_size, rng=None, shuffle=False, return_labels=False, action=None):
         """
         - data_dir is location where to store files
         - subset is train|test
@@ -91,7 +100,8 @@ class DataLoader(object):
         self.return_labels = return_labels
 
         # load CIFAR-10 training data to RAM
-        self.data, self.labels = load(data_dir, subset=subset)
+        _print("Loading data")
+        self.data, self.labels, self.original_labels = load(data_dir, subset=subset, extend_to=batch_size, action=action)
         # self.data = np.transpose(self.data, (0,2,3,1)) # (N,3,32,32) -> (N,32,32,3)
 
         self.p = 0 # pointer to where we are in iteration
@@ -104,7 +114,10 @@ class DataLoader(object):
         return self.data.shape[0]
 
     def get_num_labels(self):
-        return np.amax(self.labels) + 1
+        return np.amax(self.original_labels) + 1
+
+    def get_set_labels(self):
+        return np.unique(self.original_labels)
 
     def reset(self):
         self.p = 0
@@ -138,5 +151,3 @@ class DataLoader(object):
             return x
 
     next = __next__  # Python 2 compatibility (https://stackoverflow.com/questions/29578469/how-to-make-an-object-both-a-python2-and-python3-iterator)
-
-
