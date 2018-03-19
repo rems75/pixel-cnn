@@ -258,5 +258,5 @@ with tf.Session() as sess:
             np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
 
             # save params
-            saver.save(sess, args.model_dir + '/params_' + args.data_set + '.ckpt')
+            saver.save(sess, os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
             np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))

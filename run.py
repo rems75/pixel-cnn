@@ -5,7 +5,7 @@ Trains a Pixel-CNN++ generative model on CIFAR-10 or Tiny ImageNet data.
 Uses multiple GPUs, indicated by the flag --nr_gpu
 
 Example usage:
-CUDA_VISIBLE_DEVICES=0,1,2,3 python train_double_cnn.py --nr_gpu 4
+CUDA_VISIBLE_DEVICES=0,1,2,3 python run.py --nr_gpu 4
 """
 
 import os
@@ -83,7 +83,7 @@ if args.energy_distance:
     loss_fun = nn.energy_distance
 else:
     if obs_shape[2] == 1:
-        loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=True)
+        loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=False)
         sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
         var_per_logistic = 3
     else:

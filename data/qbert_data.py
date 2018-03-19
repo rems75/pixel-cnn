@@ -9,6 +9,7 @@ import os
 import pickle
 import sys
 import tarfile
+import time
 from six.moves import urllib
 
 def _print(s):
@@ -50,9 +51,6 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     # Add a bit of black around downsampled states so their size is a multiple of 4.
     downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 42, 2))), axis=2)
     downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)
-    # downsampled = downsampled[[1,106,185,128462,358462]]
-    # actions = [1,3,5,0,2]
-
     if subset == 'all':
         new_actions = action + np.zeros(actions.shape, dtype=np.int32) if action is not None else actions
         extra = int(np.ceil(downsampled.shape[0]/extend_to)*extend_to - downsampled.shape[0])
@@ -101,7 +99,9 @@ class DataLoader(object):
 
         # load CIFAR-10 training data to RAM
         _print("Loading data")
+        start_time = time.time()
         self.data, self.labels, self.original_labels = load(data_dir, subset=subset, extend_to=batch_size, action=action)
+        _print('Data loaded in {:.1f} seconds'.format(time.time() - start_time))
         # self.data = np.transpose(self.data, (0,2,3,1)) # (N,3,32,32) -> (N,32,32,3)
 
         self.p = 0 # pointer to where we are in iteration
