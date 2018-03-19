@@ -136,7 +136,7 @@ for i in range(args.nr_gpu):
 
         # gradients
         grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
-        print(all_params)
+        print(len(all_params))
         print(len(grads[i]))
         sys.exit()
 
