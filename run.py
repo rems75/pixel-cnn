@@ -176,6 +176,7 @@ def sample_from_model(sess):
 # init & save
 initializer = tf.global_variables_initializer()
 saver = tf.train.Saver(tf.global_variables())
+print(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 
@@ -197,7 +198,6 @@ for i in range(args.nr_gpu):
         grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
         print(len(all_params))
         print(len(grads_2[i]))
-        sys.exit()
 
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
@@ -210,6 +210,9 @@ with tf.device('/gpu:0'):
     # TO DO: FIND A GOOD WAY TO UNDO THE UPDATE
     # TO DO: UNDO UPDATE ON ADAM PARAMS
     undo_optimization = None
+
+print(tf.global_variables())
+sys.exit()
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
