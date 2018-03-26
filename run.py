@@ -136,14 +136,10 @@ for i in range(args.nr_gpu):
 
         # gradients
         grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
-        print(len(all_params))
-        print(len(grads[i]))
-        sys.exit()
 
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
         loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
-        print(loss_gen_test[0].shape)
 
         # sample
         out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
@@ -179,7 +175,41 @@ def sample_from_model(sess):
 
 # init & save
 initializer = tf.global_variables_initializer()
-saver = tf.train.Saver(reshape=True)
+saver = tf.train.Saver(tf.global_variables())
+
+##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
+
+loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=False)
+sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
+var_per_logistic = 3
+
+# get loss gradients over multiple GPUs + sampling
+grads_2 = []
+loss_gen_2 = []
+for i in range(args.nr_gpu):
+    with tf.device('/gpu:%d' % i):
+        # Get loss for each image
+        out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
+        loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs[i]), out))
+        print(loss_gen_2[i])
+
+        # gradients
+        grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
+        print(len(all_params))
+        print(len(grads_2[i]))
+        sys.exit()
+
+# add losses and gradients together and get training updates
+tf_lr = tf.placeholder(tf.float32, shape=[])
+with tf.device('/gpu:0'):
+    grad_to_be_used = []
+    for g in grads_2:
+        grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
+    # training op
+    optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    # TO DO: FIND A GOOD WAY TO UNDO THE UPDATE
+    # TO DO: UNDO UPDATE ON ADAM PARAMS
+    undo_optimization = None
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
@@ -230,13 +260,25 @@ with tf.Session() as sess:
 
     # compute pseudo-counts
     if args.compute_pseudo_counts:
-        likelihoods = []
+        rhos, rhos_prime, pseudo_counts, pseudo_counts_approx  = [], [], [], []
         for d in data:
             feed_dict = make_feed_dict(d)
-            l = np.array(sess.run(loss_gen_test, feed_dict))
-            l = np.reshape(l,(-1))
-            likelihoods.extend(np.exp(0 - l))
-            # print(l, np.exp(0 - l))
+            l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
+            _ = sess.run([optimizer_2, {grad_to_be_used: g}])
+            l_2 = np.array(sess.run([loss_gen_test], feed_dict))
+            _ = np.array(sess.run(undo_optimization, {}))
+            l, l_2 = np.reshape(l,(-1)), np.reshape(l_2,(-1))
+            r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
+            rhos.extend(r)
+            rhos_prime.extend(r_2)
+            pseudo_counts.extend(r * (1 - r_2) / (r_2 - r))
+            pseudo_counts_approx.extend(r / (r_2 - r))
         plotting._print("Run time = %ds" % (time.time()-begin))
         with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-            pickle.dump(likelihoods, f)
+            pickle.dump(rhos, f)
+        with open(os.path.join(args.model_dir,"recoding_"+str(args.action)+".pkl"), 'wb') as f:
+            pickle.dump(rhos_prime, f)
+        with open(os.path.join(args.model_dir,"pseudo_counts_"+str(args.action)+".pkl"), 'wb') as f:
+            pickle.dump(pseudo_counts, f)
+        with open(os.path.join(args.model_dir,"pseudo_counts_approx_"+str(args.action)+".pkl"), 'wb') as f:
+            pickle.dump(pseudo_counts_approx, f)
