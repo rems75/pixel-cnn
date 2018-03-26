@@ -139,7 +139,7 @@ for i in range(args.nr_gpu):
 
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
-        loss_gen_test.append(loss_fun(xs[i], out, sum_all=False))
+        loss_gen_test.append(loss_fun(xs[i], out))
 
         # sample
         out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
@@ -179,7 +179,7 @@ saver = tf.train.Saver(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 
-loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=False)
+loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 var_per_logistic = 3
 
