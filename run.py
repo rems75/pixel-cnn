@@ -282,7 +282,7 @@ with tf.Session() as sess:
             l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
             for i, gradient_ in enumerate(g):
                 _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
-                l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]})))
+                l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]}))
             _ = np.array(sess.run(undo_optimization, {}))
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
