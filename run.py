@@ -132,7 +132,6 @@ for i in range(args.nr_gpu):
         # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
-        print(loss_gen[i])
 
         # gradients
         grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
@@ -178,7 +177,6 @@ def sample_from_model(sess):
 # init & save
 initializer = tf.global_variables_initializer()
 saver = tf.train.Saver(tf.global_variables())
-print(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
@@ -210,7 +208,7 @@ with tf.device('/gpu:0'):
         print(g)
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
     # training op
-    # optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
     # TO DO: FIND A GOOD WAY TO UNDO THE UPDATE
     # TO DO: UNDO UPDATE ON ADAM PARAMS
     undo_optimization = None
@@ -251,7 +249,7 @@ with tf.Session() as sess:
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
     initial_weights = all_params.eval(session=sess)
-    initial_adam = all_params.eval(session=sess)
+    initial_adam = adam_variables.eval(session=sess)
     plotting._print('starting training')
 
     # compute likelihood over data
@@ -272,8 +270,9 @@ with tf.Session() as sess:
         for d in data:
             feed_dict = make_feed_dict(d)
             l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
-            _ = sess.run([optimizer, {grad_to_be_used: g}])
-            l_2 = np.array(sess.run([loss_gen_test], feed_dict))
+            for i, gradient_ in enumerate(g):
+                _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
+                l_2 = np.array(sess.run([loss_gen_test], feed_dict))
             _ = np.array(sess.run(undo_optimization, {}))
             l, l_2 = np.reshape(l,(-1)), np.reshape(l_2,(-1))
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
