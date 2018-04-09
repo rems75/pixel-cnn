@@ -164,7 +164,8 @@ with tf.device('/gpu:0'):
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
 for v in adam_variables:
-    print(v)
+    if v.name == 'Variable_107':
+        print(v)
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
