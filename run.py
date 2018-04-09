@@ -178,7 +178,6 @@ saver = tf.train.Saver(tf.global_variables())
 print(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
-
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 var_per_logistic = 3
@@ -193,23 +192,24 @@ for i in range(args.nr_gpu):
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs[i]), out))
         print(loss_gen_2[i])
 
+        flat_loss = [loss_gen_2[i] for i in range(loss_gen_2[i].shape[0])]
+        print(len(s))
+
         # gradients
-        grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
+        grads_2.extend([tf.gradients(l, all_params, colocate_gradients_with_ops=True) for l in flat_loss])
         print(len(all_params))
-        print(len(grads_2[i]))
+        print(len(grads_2))
 
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
     grad_to_be_used = []
-    for g in grads_2:
+    for g in grads_2[0]:
         print(g)
-        print(grads[0])
         print(len(g))
-        print(len(grads[0]))
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
     # training op
-    optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    # optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
     # TO DO: FIND A GOOD WAY TO UNDO THE UPDATE
     # TO DO: UNDO UPDATE ON ADAM PARAMS
     undo_optimization = None
@@ -270,7 +270,7 @@ with tf.Session() as sess:
         for d in data:
             feed_dict = make_feed_dict(d)
             l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
-            _ = sess.run([optimizer_2, {grad_to_be_used: g}])
+            _ = sess.run([optimizer, {grad_to_be_used: g}])
             l_2 = np.array(sess.run([loss_gen_test], feed_dict))
             _ = np.array(sess.run(undo_optimization, {}))
             l, l_2 = np.reshape(l,(-1)), np.reshape(l_2,(-1))
