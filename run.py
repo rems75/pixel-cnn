@@ -179,12 +179,11 @@ def sample_from_model(sess):
 
 # init & save
 initializer = tf.global_variables_initializer()
-saver = tf.train.Saver(tf.global_variables())
+saver = tf.train.Saver(reshape=True)
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
-var_per_logistic = 3
 
 # get loss gradients over multiple GPUs + sampling
 grads_2 = []
@@ -213,9 +212,6 @@ with tf.device('/gpu:0'):
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
     # training op
     optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
-    # TO DO: FIND A GOOD WAY TO UNDO THE UPDATE
-    # TO DO: UNDO UPDATE ON ADAM PARAMS
-    undo_optimization = None
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
@@ -277,7 +273,6 @@ with tf.Session() as sess:
                 _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
                 l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]}))
                 sess.run(all_params.assign(initial_weights))
-            _ = np.array(sess.run(undo_optimization, {}))
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
             rhos.extend(r)
