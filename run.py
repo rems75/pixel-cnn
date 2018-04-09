@@ -106,11 +106,12 @@ if args.class_conditional:
     ys = [tf.placeholder(tf.int32, shape=(args.batch_size,)) for i in range(args.nr_gpu)]
     hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
     ys_single = tf.placeholder(tf.int32, shape=(1,))
-    hs_single = tf.one_hot(ys, num_labels)
+    hs_single = tf.one_hot(ys_single, num_labels)
 else:
     h_init = None
     h_sample = [None] * args.nr_gpu
     hs = h_sample
+    hs_single = None
 
 # create the model
 model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
@@ -209,8 +210,10 @@ loss_fun_3 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_a
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
     grad_to_be_used = []
-    out = model(xs_single, hs_single, ema=None, dropout_p=0, **model_opt)
-    loss_gen_3 = loss_fun_2(tf.stop_gradient(xs_single), out)
+    out = model(xs_single, hs_single, ema=ema, dropout_p=0, **model_opt)
+    loss_gen_3 = loss_fun_3(tf.stop_gradient(xs_single), out)
+    print(loss_gen_3)
+
     for g in grads_2[0]:
         print(g)
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
@@ -276,12 +279,13 @@ with tf.Session() as sess:
         rhos, rhos_prime, pseudo_counts, pseudo_counts_approx  = [], [], [], []
         for d in data:
             feed_dict = make_feed_dict(d)
+            l2 = []
             l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
             for i, gradient_ in enumerate(g):
                 _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
-                l_2 = np.array(sess.run([loss_gen_test], feed_dict))
+                l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]})))
             _ = np.array(sess.run(undo_optimization, {}))
-            l, l_2 = np.reshape(l,(-1)), np.reshape(l_2,(-1))
+            l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
             rhos.extend(r)
             rhos_prime.extend(r_2)
