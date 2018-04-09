@@ -163,9 +163,10 @@ with tf.device('/gpu:0'):
     optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
+adam_variables = adam_variables.sort(lambda v: v.name)
 for v in adam_variables:
-    if v.name == 'Variable_107':
-        print(v)
+    print(v)
+
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
