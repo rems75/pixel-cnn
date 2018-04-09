@@ -179,7 +179,7 @@ def sample_from_model(sess):
 
 # init & save
 initializer = tf.global_variables_initializer()
-saver = tf.train.Saver(reshape=True)
+saver = tf.train.Saver(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
