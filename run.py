@@ -156,7 +156,10 @@ with tf.device('/gpu:0'):
         for j in range(len(grads[0])):
             grads[0][j] += grads[i][j]
     # training op
+    current_variables = tf.global_variables()
     optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    adam_variables = list(set(tf.global_variables()) - set(current_variables))
+    print(adam_variables)
 
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -190,7 +193,6 @@ for i in range(args.nr_gpu):
         # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs[i]), out))
-        print(loss_gen_2[i])
 
         flat_loss = [loss_gen_2[i][j] for j in range(loss_gen_2[i].shape[0])]
         print(len(flat_loss))
@@ -206,7 +208,6 @@ with tf.device('/gpu:0'):
     grad_to_be_used = []
     for g in grads_2[0]:
         print(g)
-        print(len(g))
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
     # training op
     # optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
@@ -214,7 +215,6 @@ with tf.device('/gpu:0'):
     # TO DO: UNDO UPDATE ON ADAM PARAMS
     undo_optimization = None
 
-print(tf.global_variables())
 sys.exit()
 
 # turn numpy inputs into feed_dict for use with tensorflow
@@ -250,6 +250,8 @@ with tf.Session() as sess:
     ckpt_file = os.path.join(args.model_dir, 'params_' + args.data_set + '.ckpt')
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
+    initial_weights = all_params.eval(session=sess)
+    initial_adam = all_params.eval(session=sess)
     plotting._print('starting training')
 
     # compute likelihood over data
