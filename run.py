@@ -193,7 +193,7 @@ for i in range(args.nr_gpu):
         print(loss_gen_2[i])
 
         flat_loss = [loss_gen_2[i][j] for j in range(loss_gen_2[i].shape[0])]
-        print(len(s))
+        print(len(flat_loss))
 
         # gradients
         grads_2.extend([tf.gradients(l, all_params, colocate_gradients_with_ops=True) for l in flat_loss])
