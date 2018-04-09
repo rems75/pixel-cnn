@@ -94,6 +94,7 @@ else:
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
 xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in range(args.nr_gpu)]
+xs_single = tf.placeholder(tf.float32, shape=(1, ) + obs_shape)
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
@@ -104,6 +105,8 @@ if args.class_conditional:
     h_sample = [tf.one_hot(tf.Variable(y_sample[i], trainable=False), num_labels) for i in range(args.nr_gpu)]
     ys = [tf.placeholder(tf.int32, shape=(args.batch_size,)) for i in range(args.nr_gpu)]
     hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
+    ys_single = tf.placeholder(tf.int32, shape=(1,))
+    hs_single = tf.one_hot(ys, num_labels)
 else:
     h_init = None
     h_sample = [None] * args.nr_gpu
@@ -200,10 +203,14 @@ for i in range(args.nr_gpu):
         print(len(all_params))
         print(len(grads_2))
 
+loss_fun_3 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
+
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
     grad_to_be_used = []
+    out = model(xs_single, hs_single, ema=None, dropout_p=0, **model_opt)
+    loss_gen_3 = loss_fun_2(tf.stop_gradient(xs_single), out)
     for g in grads_2[0]:
         print(g)
         grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
