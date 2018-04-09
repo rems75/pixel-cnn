@@ -163,7 +163,7 @@ with tf.device('/gpu:0'):
     optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
-adam_variables = adam_variables.sort(lambda v: v.name)
+adam_variables = adam_variables.sort(key=lambda v: v.name)
 for v in adam_variables:
     print(v)
 
