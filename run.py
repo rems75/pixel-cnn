@@ -163,10 +163,6 @@ with tf.device('/gpu:0'):
     optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
-adam_variables.sort(key=lambda v: v.name)
-for v in adam_variables:
-    print(v)
-
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -254,17 +250,17 @@ with tf.Session() as sess:
     initial_adam = [a.eval(session=sess) for a in adam_variables]
     plotting._print('starting training')
 
-    # compute likelihood over data
-    likelihoods = []
-    for d in data:
-        feed_dict = make_feed_dict(d)
-        l = np.array(sess.run(loss_gen_test, feed_dict))
-        l = np.reshape(l,(-1))
-        likelihoods.extend(np.exp(0 - l))
-        # print(l, np.exp(0 - l))
-    plotting._print("Run time = %ds" % (time.time()-begin))
-    with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-        pickle.dump(likelihoods, f)
+    # # compute likelihood over data
+    # likelihoods = []
+    # for d in data:
+    #     feed_dict = make_feed_dict(d)
+    #     l = np.array(sess.run(loss_gen_test, feed_dict))
+    #     l = np.reshape(l,(-1))
+    #     likelihoods.extend(np.exp(0 - l))
+    #     # print(l, np.exp(0 - l))
+    # plotting._print("Run time = %ds" % (time.time()-begin))
+    # with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+    #     pickle.dump(likelihoods, f)
 
     # compute pseudo-counts
     if args.compute_pseudo_counts:
@@ -273,10 +269,12 @@ with tf.Session() as sess:
             feed_dict = make_feed_dict(d)
             l_2 = []
             l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
+            print(l)
             for i, gradient_ in enumerate(g):
                 _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
                 l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]}))
                 sess.run(all_params.assign(initial_weights))
+            print(l2)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
             rhos.extend(r)
