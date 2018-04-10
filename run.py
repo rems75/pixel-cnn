@@ -250,8 +250,8 @@ with tf.Session() as sess:
     ckpt_file = os.path.join(args.model_dir,'{}_params_0.cpkt'.format(args.data_set))
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
-    initial_weights = all_params.eval(session=sess)
-    initial_adam = adam_variables.eval(session=sess)
+    initial_weights = [a.eval(session=sess) for a in all_params]
+    initial_adam = [a.eval(session=sess) for a in adam_variables]
     plotting._print('starting training')
 
     # compute likelihood over data
