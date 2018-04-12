@@ -213,8 +213,17 @@ with tf.device('/gpu:0'):
             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
+
 # init
 initializer = tf.global_variables_initializer()
+
+init_ph = []
+reset = []
+for p in all_params:
+    pp = tf.placeholder(tf.float32, shape=p.shape)
+    init_ph.append(pp)
+    reset.append(p.assign(pp))
+resetter = tf.group(*reset)
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
@@ -250,7 +259,7 @@ with tf.Session() as sess:
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
     sess.run(initializer)
-    initial_weights = [a.eval(session=sess) for a in all_params]
+    resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
     plotting._print('starting training')
 
     # # compute likelihood over data
@@ -280,8 +289,7 @@ with tf.Session() as sess:
                 # Compute likelihood of image i with updated model 
                 l_2.append(sess.run([loss_test[i]], feed_dict))
                 # Undo update
-                for p, p_o in zip(all_params, initial_weights):
-                    sess.run(p.assign(p_o))
+                sess.run([resetter], resetter_dict)
             print(l_2)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
