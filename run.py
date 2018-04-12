@@ -181,8 +181,7 @@ def sample_from_model(sess):
                 x_gen[i][:,yi,xi,:] = new_x_gen_np[i][:,yi,xi,:]
     return np.concatenate(x_gen, axis=0)
 
-# init & save
-initializer = tf.global_variables_initializer()
+# save
 saver = tf.train.Saver(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
@@ -214,6 +213,9 @@ with tf.device('/gpu:0'):
         param_updates_2, _ = nn.adam_updates(
             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
+
+# init
+initializer = tf.global_variables_initializer()
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
@@ -248,6 +250,7 @@ with tf.Session() as sess:
     ckpt_file = os.path.join(args.model_dir,'{}_params_0.cpkt'.format(args.data_set))
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
+    sess.run(initializer)
     initial_weights = [a.eval(session=sess) for a in all_params]
     plotting._print('starting training')
 
