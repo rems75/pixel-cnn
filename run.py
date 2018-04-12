@@ -273,7 +273,7 @@ with tf.Session() as sess:
             print(l)
             for i in range(args.nr_gpu):
                 # Update model on image i
-                _ = sess.run([optimizer[i]], feed_dict])
+                _ = sess.run([optimizer[i]], feed_dict)
                 # Compute likelihood of image i with updated model 
                 l_2.append(sess.run([loss_test[i]], feed_dict))
                 # Undo update
