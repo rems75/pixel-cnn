@@ -212,7 +212,8 @@ with tf.device('/gpu:0'):
         param_updates_2, _ = nn.adam_updates(
             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
-
+    print(len(optimizer_2))
+    sys.exit()
 
 # init
 initializer = tf.global_variables_initializer()
