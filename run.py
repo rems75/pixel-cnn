@@ -205,7 +205,6 @@ for i in range(args.nr_gpu):
         # gradients
         grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
 
-tf_lr = tf.placeholder(tf.float32, shape=[])
 optimizer_2 = []
 with tf.device('/gpu:0'):
     for i in range(1, args.nr_gpu):
