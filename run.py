@@ -280,7 +280,8 @@ with tf.Session() as sess:
                 # Compute likelihood of image i with updated model 
                 l_2.append(sess.run([loss_test[i]], feed_dict))
                 # Undo update
-                sess.run(all_params.assign(initial_weights))
+                for p, p_o in zip(all_params, initial_weights):
+                    sess.run(p.assign(p_o))
             print(l_2)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
