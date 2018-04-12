@@ -207,13 +207,11 @@ for i in range(args.nr_gpu):
 
 optimizer_2 = []
 with tf.device('/gpu:0'):
-    for i in range(1, args.nr_gpu):
+    for i in range(args.nr_gpu):
         # training op
         param_updates_2, _ = nn.adam_updates(
             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
-    print(len(optimizer_2))
-    sys.exit()
 
 # init
 initializer = tf.global_variables_initializer()
