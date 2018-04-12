@@ -108,7 +108,7 @@ if args.class_conditional:
     hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
     ys_single = [tf.placeholder(tf.int32, shape=(1,))
                  for i in range(args.nr_gpu)]
-    hs_single = [tf.one_hot(ys_single, num_labels) for i in range(args.nr_gpu)]
+    hs_single = [tf.one_hot(ys_single[i], num_labels) for i in range(args.nr_gpu)]
 else:
     h_init = None
     h_sample = [None] * args.nr_gpu
