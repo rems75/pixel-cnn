@@ -280,18 +280,17 @@ with tf.Session() as sess:
             feed_dict = make_feed_dict(d)
             l_2 = []
             l = sess.run(loss_test, feed_dict)
-            print(l)
             for i in range(args.nr_gpu):
                 # Update model on image i
                 feed_dict.update({ tf_lr: lr })
-                _ = sess.run([optimizer_2[i]], feed_dict)
+                _ = sess.run(optimizer_2[i], feed_dict)
                 # Compute likelihood of image i with updated model 
-                l_2.append(sess.run([loss_test[i]], feed_dict))
+                l_2.append(sess.run(loss_test[i], feed_dict))
                 # Undo update
                 sess.run([resetter], resetter_dict)
-            print(l_2)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
+            print(r_2 - r)
             rhos.extend(r)
             rhos_prime.extend(r_2)
             pseudo_counts.extend(r * (1 - r_2) / (r_2 - r))
