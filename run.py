@@ -290,7 +290,7 @@ with tf.Session() as sess:
                 sess.run([resetter], resetter_dict)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
-            print(r_2 - r)
+            print(1e10*(r_2 - r))
             rhos.extend(r)
             rhos_prime.extend(r_2)
             pseudo_counts.extend(r * (1 - r_2) / (r_2 - r))
