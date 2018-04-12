@@ -75,6 +75,7 @@ elif args.data_set == 'qbert':
 else:
     raise("unsupported dataset")
 data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
+data_single = DataLoader(args.data_dir, 'all', args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -94,7 +95,7 @@ else:
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
 xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in range(args.nr_gpu)]
-xs_single = tf.placeholder(tf.float32, shape=(1, ) + obs_shape)
+xs_single = [tf.placeholder(tf.float32, shape=(1, ) + obs_shape) for i in range(args.nr_gpu)]
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
@@ -105,13 +106,14 @@ if args.class_conditional:
     h_sample = [tf.one_hot(tf.Variable(y_sample[i], trainable=False), num_labels) for i in range(args.nr_gpu)]
     ys = [tf.placeholder(tf.int32, shape=(args.batch_size,)) for i in range(args.nr_gpu)]
     hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
-    ys_single = tf.placeholder(tf.int32, shape=(1,))
-    hs_single = tf.one_hot(ys_single, num_labels)
+    ys_single = [tf.placeholder(tf.int32, shape=(1,))
+                 for i in range(args.nr_gpu)]
+    hs_single = [tf.one_hot(ys_single, num_labels) for i in range(args.nr_gpu)]
 else:
     h_init = None
     h_sample = [None] * args.nr_gpu
     hs = h_sample
-    hs_single = None
+    hs_single = [None] * args.nr_gpu
 
 # create the model
 model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
@@ -160,7 +162,9 @@ with tf.device('/gpu:0'):
             grads[0][j] += grads[i][j]
     # training op
     current_variables = tf.global_variables()
-    optimizer = tf.group(nn.adam_updates(all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    param_updates, adam_updates = nn.adam_updates(
+        all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)
+    optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
@@ -188,30 +192,28 @@ sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 # get loss gradients over multiple GPUs + sampling
 grads_2 = []
 loss_gen_2 = []
+loss_test = []
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
         # Get loss for each image
-        out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
-        loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs[i]), out))
+        out = model(xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
+        loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
-        flat_loss = [loss_gen_2[i][j] for j in range(loss_gen_2[i].shape[0])]
+        # Get loss for each image
+        out = model(xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
+        loss_test.append(loss_fun_2(xs_single[i], out))
 
         # gradients
-        grads_2.extend([tf.gradients(l, all_params, colocate_gradients_with_ops=True) for l in flat_loss])
+        grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
 
-loss_fun_3 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
-
-# add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
+optimizer_2 = []
 with tf.device('/gpu:0'):
-    grad_to_be_used = []
-    out = model(xs_single, hs_single, ema=ema, dropout_p=0, **model_opt)
-    loss_gen_3 = loss_fun_3(tf.stop_gradient(xs_single), out)
-
-    for g in grads_2[0]:
-        grad_to_be_used.append(tf.placeholder(dtype=tf.float32, shape=g.shape))
-    # training op
-    optimizer_2 = tf.group(nn.adam_updates(all_params, grad_to_be_used, lr=tf_lr, mom1=0.95, mom2=0.9995), maintain_averages_op)
+    for i in range(1, args.nr_gpu):
+        # training op
+        param_updates_2, _ = nn.adam_updates(
+            all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
+        optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False):
@@ -227,10 +229,10 @@ def make_feed_dict(data, init=False):
             feed_dict.update({y_init: y})
     else:
         x = np.split(x, args.nr_gpu)
-        feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
+        feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
         if y is not None:
             y = np.split(y, args.nr_gpu)
-            feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
+            feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
     return feed_dict
 
 # //////////// perform training //////////////
@@ -247,7 +249,6 @@ with tf.Session() as sess:
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
     initial_weights = [a.eval(session=sess) for a in all_params]
-    initial_adam = [a.eval(session=sess) for a in adam_variables]
     plotting._print('starting training')
 
     # # compute likelihood over data
@@ -265,16 +266,19 @@ with tf.Session() as sess:
     # compute pseudo-counts
     if args.compute_pseudo_counts:
         rhos, rhos_prime, pseudo_counts, pseudo_counts_approx  = [], [], [], []
-        for d in data:
+        for d in data_single:
             feed_dict = make_feed_dict(d)
             l_2 = []
-            l, g = np.array(sess.run([loss_gen_test, grads_2], feed_dict))
+            l = sess.run(loss_test, feed_dict)
             print(l)
-            for i, gradient_ in enumerate(g):
-                _ = sess.run([optimizer, {grad_to_be_used: gradient_}])
-                l_2.append(sess.run([loss_gen_3], {xs_single: d[0][i], ys_single: d[1][i]}))
+            for i in range(args.nr_gpu):
+                # Update model on image i
+                _ = sess.run([optimizer[i]], feed_dict])
+                # Compute likelihood of image i with updated model 
+                l_2.append(sess.run([loss_test[i]], feed_dict))
+                # Undo update
                 sess.run(all_params.assign(initial_weights))
-            print(l2)
+            print(l_2)
             l, l_2 = np.reshape(l,(-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
             rhos.extend(r)
