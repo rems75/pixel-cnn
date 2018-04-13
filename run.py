@@ -288,9 +288,11 @@ with tf.Session() as sess:
                 l_2.append(sess.run(loss_test[i], feed_dict))
                 # Undo update
                 sess.run([resetter], resetter_dict)
-            l, l_2 = np.reshape(l,(-1)), np.array(l_2)
+            l3 = sess.run(loss_test, feed_dict)
+            print(l, l3)
+            print(l2 - l)
+            l, l_2 = np.reshape(l, (-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
-            print(1e10*(r_2 - r))
             rhos.extend(r)
             rhos_prime.extend(r_2)
             pseudo_counts.extend(r * (1 - r_2) / (r_2 - r))
