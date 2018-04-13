@@ -290,7 +290,7 @@ with tf.Session() as sess:
                 sess.run([resetter], resetter_dict)
             l3 = sess.run(loss_test, feed_dict)
             print(l, l3)
-            print(l2 - l)
+            print(l_2 - l)
             l, l_2 = np.reshape(l, (-1)), np.array(l_2)
             r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
             rhos.extend(r)
