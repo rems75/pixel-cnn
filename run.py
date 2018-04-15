@@ -76,7 +76,7 @@ else:
     raise("unsupported dataset")
 data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 data_single = DataLoader(args.data_dir, 'all', args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
-actions_counts = dict(zip(data.get_stat_labels()))
+actions_counts = dict(zip(*data.get_stat_labels()))
 print(actions_counts)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
