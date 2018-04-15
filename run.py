@@ -279,10 +279,10 @@ with tf.Session() as sess:
         for d in data_single:
             feed_dict = make_feed_dict(d)
             l_2 = []
-            print(feed_dict[xs_single[0]][20][20])
+            print(feed_dict[xs_single[0]][0][20][20])
             l = sess.run(loss_test, feed_dict)
             print(l)
-            print(feed_dict[xs_single[0]][20][20])
+            print(feed_dict[xs_single[0]][0][20][20])
             l = sess.run(loss_test, feed_dict)
             print(l)
             sys.exit()
