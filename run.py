@@ -269,17 +269,17 @@ with tf.Session() as sess:
     resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
     plotting._print('starting training')
 
-    # compute likelihood over data
-    likelihoods = []
-    for d in data:
-        feed_dict = make_feed_dict(d)
-        l = np.array(sess.run(loss_gen_test, feed_dict))
-        l = np.reshape(l,(-1))
-        likelihoods.extend(np.exp(0 - l))
-        # print(l, np.exp(0 - l))
-    plotting._print("Run time = %ds" % (time.time()-begin))
-    with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-        pickle.dump(likelihoods, f)
+    # # compute likelihood over data
+    # likelihoods = []
+    # for d in data:
+    #     feed_dict = make_feed_dict(d)
+    #     l = np.array(sess.run(loss_gen_test, feed_dict))
+    #     l = np.reshape(l,(-1))
+    #     likelihoods.extend(np.exp(0 - l))
+    #     # print(l, np.exp(0 - l))
+    # plotting._print("Run time = %ds" % (time.time()-begin))
+    # with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+    #     pickle.dump(likelihoods, f)
 
     # compute pseudo-counts
     if args.compute_pseudo_counts:
