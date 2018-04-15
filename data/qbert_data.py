@@ -116,8 +116,8 @@ class DataLoader(object):
     def get_num_labels(self):
         return np.amax(self.original_labels) + 1
 
-    def get_set_labels(self):
-        return np.unique(self.original_labels)
+    def get_stat_labels(self):
+        return np.unique(self.original_labels, return_counts=True)
 
     def reset(self):
         self.p = 0

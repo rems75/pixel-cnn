@@ -76,6 +76,8 @@ else:
     raise("unsupported dataset")
 data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 data_single = DataLoader(args.data_dir, 'all', args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
+actions_counts = dict(zip(data.get_stat_labels()))
+print(actions_counts)
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -225,7 +227,7 @@ for p in all_params:
 resetter = tf.group(*reset)
 
 # turn numpy inputs into feed_dict for use with tensorflow
-def make_feed_dict(data, init=False):
+def make_feed_dict(data, init=False, single=False):
     if type(data) is tuple:
         x,y = data
     else:
@@ -238,10 +240,16 @@ def make_feed_dict(data, init=False):
             feed_dict.update({y_init: y})
     else:
         x = np.split(x, args.nr_gpu)
-        feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
-        if y is not None:
-            y = np.split(y, args.nr_gpu)
-            feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
+        if single:
+            feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
+            if y is not None:
+                y = np.split(y, args.nr_gpu)
+                feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
+        else:
+            feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
+            if y is not None:
+                y = np.split(y, args.nr_gpu)
+                feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
     return feed_dict
 
 # //////////// perform training //////////////
@@ -261,28 +269,32 @@ with tf.Session() as sess:
     resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
     plotting._print('starting training')
 
-    # # compute likelihood over data
-    # likelihoods = []
-    # for d in data:
-    #     feed_dict = make_feed_dict(d)
-    #     l = np.array(sess.run(loss_gen_test, feed_dict))
-    #     l = np.reshape(l,(-1))
-    #     likelihoods.extend(np.exp(0 - l))
-    #     # print(l, np.exp(0 - l))
-    # plotting._print("Run time = %ds" % (time.time()-begin))
-    # with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-    #     pickle.dump(likelihoods, f)
+    # compute likelihood over data
+    likelihoods = []
+    for d in data:
+        feed_dict = make_feed_dict(d)
+        l = np.array(sess.run(loss_gen_test, feed_dict))
+        l = np.reshape(l,(-1))
+        likelihoods.extend(np.exp(0 - l))
+        # print(l, np.exp(0 - l))
+    plotting._print("Run time = %ds" % (time.time()-begin))
+    with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+        pickle.dump(likelihoods, f)
 
     # compute pseudo-counts
     if args.compute_pseudo_counts:
         rhos, rhos_prime, pseudo_counts, pseudo_counts_approx  = [], [], [], []
         for d in data_single:
-            feed_dict = make_feed_dict(d)
+            feed_dict = make_feed_dict(d, single=True)
             l_2 = []
-            print(feed_dict[xs_single[0]][0][20][20])
+            print(feed_dict[xs_single[0]][0][20:24][20:24])
+            print(feed_dict[xs_single[1]][0][20:24][20:24])
+            print(loss_test)
             l = sess.run(loss_test, feed_dict)
             print(l)
-            print(feed_dict[xs_single[0]][0][20][20])
+            print(feed_dict[xs_single[0]][0][20:24][20:24])
+            print(feed_dict[xs_single[1]][0][20:24][20:24])
+            print(loss_test)
             l = sess.run(loss_test, feed_dict)
             print(l)
             sys.exit()
