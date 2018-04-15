@@ -281,14 +281,10 @@ with tf.Session() as sess:
             l_2 = []
             l = sess.run(loss_test, feed_dict)
             print(l)
-            l = sess.run(loss_test, feed_dict)
-            print(l)
             for i in range(args.nr_gpu):
                 # Update model on image i
                 feed_dict.update({ tf_lr: lr })
                 print(sess.run(loss_test[i], feed_dict))
-                # print(sess.run(loss_test[i], feed_dict))
-                # print(sess.run(loss_test[i], feed_dict))
                 _ = sess.run(optimizer_2[i], feed_dict)
                 print(sess.run(loss_test[i], feed_dict))
                 # Compute likelihood of image i with updated model 
