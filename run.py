@@ -292,7 +292,6 @@ with tf.Session() as sess:
                 print(all_params[0].eval(session=sess))
                 sess.run([resetter], resetter_dict)
                 print(all_params[0].eval(session=sess))
-                sys.exit()
             l3 = sess.run(loss_test, feed_dict)
             print(l, l3)
             print(l_2 - l)
