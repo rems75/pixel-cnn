@@ -77,7 +77,8 @@ else:
 data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 data_single = DataLoader(args.data_dir, 'all', args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
 actions_counts = dict(zip(*data.get_stat_labels()))
-print(actions_counts)
+num_actions = size(data.original_labels)
+print(actions_counts, num_actions, np.sum(actions_counts.values()))
 obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -269,35 +270,22 @@ with tf.Session() as sess:
     resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
     plotting._print('starting training')
 
-    # # compute likelihood over data
-    # likelihoods = []
-    # for d in data:
-    #     feed_dict = make_feed_dict(d)
-    #     l = np.array(sess.run(loss_gen_test, feed_dict))
-    #     l = np.reshape(l,(-1))
-    #     likelihoods.extend(np.exp(0 - l))
-    #     # print(l, np.exp(0 - l))
-    # plotting._print("Run time = %ds" % (time.time()-begin))
-    # with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-    #     pickle.dump(likelihoods, f)
+    # compute likelihood over data
+    log_likelihoods = []
+    for d in data:
+        feed_dict = make_feed_dict(d)
+        l = np.array(sess.run(loss_gen_test, feed_dict))
+        log_likelihoods.extend(np.reshape(l,(-1)))
+    plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
+    with open(os.path.join(args.model_dir,"log_likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+        pickle.dump(log_likelihoods, f)
 
     # compute pseudo-counts
     if args.compute_pseudo_counts:
-        rhos, rhos_prime, pseudo_counts, pseudo_counts_approx  = [], [], [], []
+        recoding_log_likelihoods, pseudo_counts, pseudo_counts_approx = [], [], []
         for d in data_single:
             feed_dict = make_feed_dict(d, single=True)
             l_2 = []
-            print(feed_dict[xs_single[0]][0][20:24][20:24])
-            print(feed_dict[xs_single[1]][0][20:24][20:24])
-            print(loss_test)
-            l = sess.run(loss_test, feed_dict)
-            print(l)
-            print(feed_dict[xs_single[0]][0][20:24][20:24])
-            print(feed_dict[xs_single[1]][0][20:24][20:24])
-            print(loss_test)
-            l = sess.run(loss_test, feed_dict)
-            print(l)
-            sys.exit()
             for i in range(args.nr_gpu):
                 # Update model on image i
                 feed_dict.update({ tf_lr: lr })
@@ -306,20 +294,19 @@ with tf.Session() as sess:
                 l_2.append(sess.run(loss_test[i], feed_dict))
                 # Undo update
                 sess.run([resetter], resetter_dict)
-            l3 = sess.run(loss_test, feed_dict)
-            print(l, l_2, l3)
-            l, l_2 = np.reshape(l, (-1)), np.array(l_2)
-            r, r_2 = np.exp(0 - l), np.exp(0 - l_2)
-            rhos.extend(r)
-            rhos_prime.extend(r_2)
-            pseudo_counts.extend(r * (1 - r_2) / (r_2 - r))
-            pseudo_counts_approx.extend(r / (r_2 - r))
-        plotting._print("Run time = %ds" % (time.time()-begin))
-        with open(os.path.join(args.model_dir,"likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
-            pickle.dump(rhos, f)
+            recoding_log_likelihoods.extend(np.array(l_2))
+        plotting._print("Run time for recoding = %ds" % (time.time()-begin))
         with open(os.path.join(args.model_dir,"recoding_"+str(args.action)+".pkl"), 'wb') as f:
-            pickle.dump(rhos_prime, f)
-        with open(os.path.join(args.model_dir,"pseudo_counts_"+str(args.action)+".pkl"), 'wb') as f:
-            pickle.dump(pseudo_counts, f)
-        with open(os.path.join(args.model_dir,"pseudo_counts_approx_"+str(args.action)+".pkl"), 'wb') as f:
-            pickle.dump(pseudo_counts_approx, f)
+            pickle.dump(recoding_log_likelihoods, f)
+        pseudo_counts, pseudo_counts_approx = [], []
+        if args.action is not None:
+            true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
+            true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
+            
+            pseudo_counts.extend(true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood))
+            pseudo_counts_approx.extend(true_likelihood / (true_recoding_likelihood - true_likelihood))
+
+            with open(os.path.join(args.model_dir,"pseudo_counts_"+str(args.action)+".pkl"), 'wb') as f:
+                pickle.dump(pseudo_counts, f)
+            with open(os.path.join(args.model_dir,"pseudo_counts_approx_"+str(args.action)+".pkl"), 'wb') as f:
+                pickle.dump(pseudo_counts_approx, f)
