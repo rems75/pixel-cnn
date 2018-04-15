@@ -199,7 +199,7 @@ for i in range(args.nr_gpu):
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
         # Get loss for each image
-        out = model(xs_single[i], hs_single[i], ema=None, dropout_p=0, **model_opt)
+        out = model(xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
         loss_test.append(loss_fun_2(xs_single[i], out))
 
         # gradients
@@ -283,6 +283,8 @@ with tf.Session() as sess:
             for i in range(args.nr_gpu):
                 # Update model on image i
                 feed_dict.update({ tf_lr: lr })
+                print(sess.run(loss_test[i], feed_dict))
+                print(sess.run(loss_test[i], feed_dict))
                 print(sess.run(loss_test[i], feed_dict))
                 _ = sess.run(optimizer_2[i], feed_dict)
                 print(sess.run(loss_test[i], feed_dict))
