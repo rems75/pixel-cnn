@@ -268,7 +268,9 @@ with tf.Session() as sess:
     saver.restore(sess, ckpt_file)
     sess.run(initializer)
     resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
+    plotting._print("Run time for loading = %ds" % (time.time()-begin))
     plotting._print('starting training')
+    begin = time.time()
 
     # compute likelihood over data
     log_likelihoods = []
@@ -277,6 +279,7 @@ with tf.Session() as sess:
         l = np.array(sess.run(loss_gen_test, feed_dict))
         log_likelihoods.extend(np.reshape(l,(-1)))
     plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
+    begin = time.time()
     with open(os.path.join(args.model_dir,"log_likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
         pickle.dump(log_likelihoods, f)
 
