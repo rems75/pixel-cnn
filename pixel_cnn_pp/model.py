@@ -15,7 +15,7 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
     that position.
     'h' is an optional N x K matrix of values to condition our generative model on
     """
-    print("CALLING MODEL_SPEC")
+
     counters = {}
     with arg_scope([nn.conv2d, nn.deconv2d, nn.gated_resnet, nn.dense], counters=counters, init=init, ema=ema, dropout_p=dropout_p):
 

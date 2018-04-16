@@ -122,10 +122,8 @@ else:
 model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
 model = tf.make_template('model', model_spec)
 
-print("BEFORE INIT")
 # run once for data dependent initialization of parameters
 init_pass = model(x_init, h_init, init=True, dropout_p=args.dropout_p, **model_opt)
-print("RIGHT AFTER INIT")
 
 # keep track of moving average
 all_params = tf.trainable_variables()
@@ -139,7 +137,6 @@ loss_gen_test = []
 new_x_gen = []
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
-        print("IN GPU {}".format(i))
 
         # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
@@ -194,48 +191,48 @@ saver = tf.train.Saver(tf.global_variables())
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
+trainable_params = [all_params]
+all_models = [model]
+
 # get loss gradients over multiple GPUs + sampling
-grads_2, loss_gen_2, loss_test, optimizer_2, init_ph, reset, resetter = [], [], [], [], [], [], []
-for p in all_params:
-    pp = tf.placeholder(tf.float32, shape=p.shape)
-    init_ph.append(pp)
-    reset.append(p.assign(pp))
+grads_2, loss_gen_2, loss_test, optimizer_2, init_ph, resetter = [], [], [], [], [], []
 
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
+
+        if i > 0:
+            all_models.append(tf.make_template('model_{}'.format(i), model_spec))
+            init_pass = all_models[i](x_init, h_init, init=True, dropout_p=args.dropout_p, **model_opt)
+            trainable_params.append(list(set(tf.trainable_variables()) - set().union(trainable_params)))
+            for p1,p2 in zip(trainable_params[0], trainable_params[1]):
+                print(p1, p2)
+        sys.exit()
         # Get loss for each image
-        out = model(xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
+        out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
         # Get loss for each image
-        out = model(xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
+        out = all_models[i](xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
         loss_test.append(loss_fun_2(xs_single[i], out))
 
         # gradients
-        grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
+        grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
         # training op
         param_updates_2, _ = nn.adam_updates(
-            all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
+            trainable_params[i], grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
+
+        init_ph[i], reset = [], []
+        for p in trainable_params[i]:
+            pp = tf.placeholder(tf.float32, shape=p.shape)
+            init_ph[i].append(pp)
+            reset.append(p.assign(pp))
 
         resetter.append(tf.group(*reset))
 
-# with tf.device('/gpu:0'):
-#     for i in range(args.nr_gpu):
-#         # training op
-#         param_updates_2, _ = nn.adam_updates(
-#             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
-#         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
-
 # init
 initializer = tf.global_variables_initializer()
-
-# for p in all_params:
-#     pp = tf.placeholder(tf.float32, shape=p.shape)
-#     init_ph.append(pp)
-#     reset.append(p.assign(pp))
-# resetter = tf.group(*reset)
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False, single=False):
@@ -270,9 +267,6 @@ test_bpd = []
 lr = args.learning_rate
 ini = tf.variables_initializer([all_params[0]])
 with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-    print(all_params[0])
-    print(sess.run(ini))
-    sys.exit()
     begin = time.time()
     # init
     data.reset()  # rewind the iterator back to 0 to do one full epoch
