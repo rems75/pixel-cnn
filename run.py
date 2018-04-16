@@ -206,7 +206,7 @@ for i in range(args.nr_gpu):
             trainable_params.append(list(set(tf.trainable_variables()) - set().union(trainable_params)))
             for p1,p2 in zip(trainable_params[0], trainable_params[1]):
                 print(p1, p2)
-        sys.exit()
+            sys.exit()
         # Get loss for each image
         out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
@@ -265,16 +265,18 @@ if not os.path.exists(args.model_dir):
     os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
-ini = tf.variables_initializer([all_params[0]])
 with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
     begin = time.time()
+
     # init
     data.reset()  # rewind the iterator back to 0 to do one full epoch
     ckpt_file = os.path.join(args.model_dir,'{}_params_0.cpkt'.format(args.data_set))
     plotting._print('restoring parameters from', ckpt_file)
     saver.restore(sess, ckpt_file)
     sess.run(initializer)
-    resetter_dict = dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, init_ph)])
+    resetter_dict = {}
+    for ph in init_ph:
+        resetter_dict.update(dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, ph)]))
     plotting._print("Run time for loading = %ds" % (time.time()-begin))
     plotting._print('starting training')
     begin = time.time()
