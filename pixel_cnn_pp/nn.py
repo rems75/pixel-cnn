@@ -207,7 +207,7 @@ def get_name(layer_name, counters):
     return name
 
 @add_arg_scope
-def dense(x, num_units, nonlinearity=None, init_scale=1., counters={}, init=False, ema=None, print=False, **kwargs):
+def dense(x, num_units, nonlinearity=None, init_scale=1., counters={}, init=False, ema=None, print_nin=False, **kwargs):
     ''' fully connected layer '''
     name = get_name('dense', counters)
     with tf.variable_scope(name):
@@ -233,7 +233,7 @@ def dense(x, num_units, nonlinearity=None, init_scale=1., counters={}, init=Fals
         if nonlinearity is not None:
             x = nonlinearity(x)
 
-        if print:
+        if print_nin:
             print("IN DENSE: {}".format(name))
         return x
 
@@ -308,7 +308,7 @@ def nin(x, num_units, **kwargs):
     """ a network in network layer (1x1 CONV) """
     s = int_shape(x)
     x = tf.reshape(x, [np.prod(s[:-1]),s[-1]])
-    x = dense(x, num_units, print=True, **kwargs)
+    x = dense(x, num_units, print_nin=True, **kwargs)
     return tf.reshape(x, s[:-1]+[num_units])
 
 ''' meta-layer consisting of multiple base layers '''
