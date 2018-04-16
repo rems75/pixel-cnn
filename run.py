@@ -122,16 +122,16 @@ else:
 model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
 model = tf.make_template('model', model_spec)
 
+print("BEFORE INIT")
 # run once for data dependent initialization of parameters
 init_pass = model(x_init, h_init, init=True, dropout_p=args.dropout_p, **model_opt)
+print("RIGHT AFTER INIT")
 
 # keep track of moving average
 all_params = tf.trainable_variables()
 ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
 maintain_averages_op = tf.group(ema.apply(all_params))
 ema_params = [ema.average(p) for p in all_params]
-print(all_params[0])
-sys.exit()
 # get loss gradients over multiple GPUs + sampling
 grads = []
 loss_gen = []
@@ -139,6 +139,8 @@ loss_gen_test = []
 new_x_gen = []
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
+        print("IN GPU {}".format(i))
+
         # Get loss for each image
         out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))

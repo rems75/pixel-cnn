@@ -112,4 +112,3 @@ def model_spec(x, h=None, init=False, ema=None, dropout_p=0.5, nr_resnet=5, nr_f
                 assert len(ul_list) == 0
 
                 return x_out
-
