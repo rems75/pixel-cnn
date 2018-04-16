@@ -157,7 +157,7 @@ for i in range(args.nr_gpu):
             new_x_gen.append(out[0])
         else:
             new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
-
+sys.exit()
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
