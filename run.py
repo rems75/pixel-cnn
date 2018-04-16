@@ -130,7 +130,8 @@ all_params = tf.trainable_variables()
 ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
 maintain_averages_op = tf.group(ema.apply(all_params))
 ema_params = [ema.average(p) for p in all_params]
-
+print(all_params[0])
+sys.exit()
 # get loss gradients over multiple GPUs + sampling
 grads = []
 loss_gen = []
@@ -301,7 +302,7 @@ with tf.Session() as sess:
             #     # Update model on image i
             #     feed_dict.update({ tf_lr: lr })
             #     _ = sess.run(optimizer_2[i], feed_dict)
-            #     # Compute likelihood of image i with updated model 
+            #     # Compute likelihood of image i with updated model
             #     l_2.append(sess.run(loss_test[i], feed_dict))
             #     # Undo update
             #     sess.run([resetter], resetter_dict)
@@ -321,7 +322,7 @@ with tf.Session() as sess:
         if args.action is not None:
             true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
             true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
-            
+
             pseudo_counts.extend(true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood))
             pseudo_counts_approx.extend(true_likelihood / (true_recoding_likelihood - true_likelihood))
 
