@@ -223,7 +223,8 @@ for i in range(args.nr_gpu):
             trainable_params[i], grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
-        init_ph[i], reset = [], []
+        init_ph.append([])
+        reset = []
         for p in trainable_params[i]:
             pp = tf.placeholder(tf.float32, shape=p.shape)
             init_ph[i].append(pp)
