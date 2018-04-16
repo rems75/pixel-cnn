@@ -287,6 +287,7 @@ with tf.Session() as sess:
         log_likelihoods.extend(np.reshape(l,(-1)))
     plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
     begin = time.time()
+    log_likelihoods = np.array(log_likelihoods)
     with open(os.path.join(args.model_dir,"log_likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
         pickle.dump(log_likelihoods, f)
 
@@ -296,24 +297,24 @@ with tf.Session() as sess:
         for d in data_single:
             feed_dict = make_feed_dict(d, single=True)
             l_2 = []
-            for i in range(args.nr_gpu):
-                # Update model on image i
-                feed_dict.update({ tf_lr: lr })
-                _ = sess.run(optimizer_2[i], feed_dict)
-                # Compute likelihood of image i with updated model 
-                l_2.append(sess.run(loss_test[i], feed_dict))
-                # Undo update
-                sess.run([resetter], resetter_dict)
-            for i in range(args.nr_gpu):
-                # Update model on image i
-                feed_dict.update({tf_lr: lr})
-                _ = sess.run(optimizer_2[i], feed_dict)
-                # Compute likelihood of image i with updated model
-                l_2.append(sess.run(loss_test[i], feed_dict))
-                # Undo update
-                sess.run([resetter], resetter_dict)
-            recoding_log_likelihoods.extend(np.array(l_2))
+            # for i in range(args.nr_gpu):
+            #     # Update model on image i
+            #     feed_dict.update({ tf_lr: lr })
+            #     _ = sess.run(optimizer_2[i], feed_dict)
+            #     # Compute likelihood of image i with updated model 
+            #     l_2.append(sess.run(loss_test[i], feed_dict))
+            #     # Undo update
+            #     sess.run([resetter], resetter_dict)
+            # Update model on image i
+            feed_dict.update({tf_lr: lr})
+            _ = sess.run(optimizer_2, feed_dict)
+            # Compute likelihood of image i with updated model
+            l_2 = sess.run(loss_test, feed_dict)
+            # Undo update
+            sess.run(resetter, resetter_dict)
+            recoding_log_likelihoods.extend(l_2)
         plotting._print("Run time for recoding = %ds" % (time.time()-begin))
+        recoding_log_likelihoods = np.array(recoding_log_likelihoods)
         with open(os.path.join(args.model_dir,"recoding_"+str(args.action)+".pkl"), 'wb') as f:
             pickle.dump(recoding_log_likelihoods, f)
         pseudo_counts, pseudo_counts_approx = [], []
