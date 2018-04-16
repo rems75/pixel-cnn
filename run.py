@@ -157,7 +157,7 @@ for i in range(args.nr_gpu):
             new_x_gen.append(out[0])
         else:
             new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
-sys.exit()
+
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
@@ -268,9 +268,10 @@ if not os.path.exists(args.model_dir):
     os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
-with tf.Session() as sess:
+with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    print(sess.run(tf.initializers.variables([all_params[0]]))
+    sys.exit()
     begin = time.time()
-
     # init
     data.reset()  # rewind the iterator back to 0 to do one full epoch
     ckpt_file = os.path.join(args.model_dir,'{}_params_0.cpkt'.format(args.data_set))

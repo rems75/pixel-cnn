@@ -308,6 +308,7 @@ def nin(x, num_units, **kwargs):
     """ a network in network layer (1x1 CONV) """
     s = int_shape(x)
     x = tf.reshape(x, [np.prod(s[:-1]),s[-1]])
+    print("NIN")
     x = dense(x, num_units, print_nin=True, **kwargs)
     return tf.reshape(x, s[:-1]+[num_units])
 
