@@ -269,7 +269,7 @@ if not os.path.exists(args.model_dir):
 test_bpd = []
 lr = args.learning_rate
 with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-    print(sess.run(tf.initializers.variables([all_params[0]])))
+    print(sess.run(tf.variables_initializer([all_params[0]])))
     sys.exit()
     begin = time.time()
     # init
