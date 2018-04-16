@@ -192,9 +192,12 @@ loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_a
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
 # get loss gradients over multiple GPUs + sampling
-grads_2 = []
-loss_gen_2 = []
-loss_test = []
+grads_2, loss_gen_2, loss_test, optimizer_2, init_ph, reset, resetter = [], [], [], [], [], [], []
+for p in all_params:
+    pp = tf.placeholder(tf.float32, shape=p.shape)
+    init_ph.append(pp)
+    reset.append(p.assign(pp))
+
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
         # Get loss for each image
@@ -208,24 +211,28 @@ for i in range(args.nr_gpu):
         # gradients
         grads_2.append(tf.gradients(loss_gen_2[i], all_params, colocate_gradients_with_ops=True))
 
-optimizer_2 = []
-with tf.device('/gpu:0'):
-    for i in range(args.nr_gpu):
         # training op
         param_updates_2, _ = nn.adam_updates(
             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
+        resetter.append(tf.group(*reset))
+
+# with tf.device('/gpu:0'):
+#     for i in range(args.nr_gpu):
+#         # training op
+#         param_updates_2, _ = nn.adam_updates(
+#             all_params, grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
+#         optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
+
 # init
 initializer = tf.global_variables_initializer()
 
-init_ph = []
-reset = []
-for p in all_params:
-    pp = tf.placeholder(tf.float32, shape=p.shape)
-    init_ph.append(pp)
-    reset.append(p.assign(pp))
-resetter = tf.group(*reset)
+# for p in all_params:
+#     pp = tf.placeholder(tf.float32, shape=p.shape)
+#     init_ph.append(pp)
+#     reset.append(p.assign(pp))
+# resetter = tf.group(*reset)
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False, single=False):
@@ -294,6 +301,14 @@ with tf.Session() as sess:
                 feed_dict.update({ tf_lr: lr })
                 _ = sess.run(optimizer_2[i], feed_dict)
                 # Compute likelihood of image i with updated model 
+                l_2.append(sess.run(loss_test[i], feed_dict))
+                # Undo update
+                sess.run([resetter], resetter_dict)
+            for i in range(args.nr_gpu):
+                # Update model on image i
+                feed_dict.update({tf_lr: lr})
+                _ = sess.run(optimizer_2[i], feed_dict)
+                # Compute likelihood of image i with updated model
                 l_2.append(sess.run(loss_test[i], feed_dict))
                 # Undo update
                 sess.run([resetter], resetter_dict)
