@@ -154,7 +154,7 @@ for i in range(args.nr_gpu):
             new_x_gen.append(out[0])
         else:
             new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
-
+print('1', len(tf.trainable_variables()))
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
@@ -170,6 +170,7 @@ with tf.device('/gpu:0'):
     optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
+print('2', len(tf.trainable_variables()))
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -190,6 +191,7 @@ saver = tf.train.Saver(tf.global_variables())
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
+print('3', len(tf.trainable_variables()))
 
 trainable_params = [all_params]
 all_models = [model]
@@ -207,6 +209,7 @@ for i in range(args.nr_gpu):
             print(len(trainable_params[0]))
             print(len(trainable_params[1]))
             sys.exit()
+
         # Get loss for each image
         out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
         loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
