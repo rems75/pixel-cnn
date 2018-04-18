@@ -164,10 +164,13 @@ with tf.device('/gpu:0'):
         for j in range(len(grads[0])):
             grads[0][j] += grads[i][j]
     # training op
+    print('1.1', len(tf.trainable_variables()))
     current_variables = tf.global_variables()
     param_updates, adam_updates = nn.adam_updates(
         all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)
+    print('1.2', len(tf.trainable_variables()))
     optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
+    print('1.3', len(tf.trainable_variables()))
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
 print('2', len(tf.trainable_variables()))
