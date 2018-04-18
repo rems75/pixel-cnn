@@ -209,7 +209,8 @@ for i in range(args.nr_gpu):
             trainable_params[0].sort(key=lambda v: v.name)
             trainable_params[1].sort(key=lambda v: v.name)
             for p, pp in zip(trainable_params[0], trainable_params[1]):
-                print(p.name, p.name.replace('model', 'model_{}'.format(i)), pp.name)
+                if p.name.replace('model', 'model_{}'.format(i)) != pp.name:
+                    print(p.name.replace('model', 'model_{}'.format(i)), pp.name)
             sys.exit()
 
         # Get loss for each image
