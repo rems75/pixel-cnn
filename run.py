@@ -206,12 +206,7 @@ for i in range(args.nr_gpu):
             init_pass = all_models[i](x_init, h_init, init=True,
                           dropout_p=args.dropout_p, **model_opt)
             trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
-            trainable_params[0].sort(key=lambda v: v.name)
-            trainable_params[1].sort(key=lambda v: v.name)
-            for p, pp in zip(trainable_params[0], trainable_params[1]):
-                if p.name.replace('model', 'model_{}'.format(i)) != pp.name:
-                    print(p.name.replace('model', 'model_{}'.format(i)), pp.name)
-            sys.exit()
+            trainable_params[i].sort(key=lambda v: v.name)
 
         # Get loss for each image
         out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
@@ -316,11 +311,17 @@ with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
             #     sess.run([resetter], resetter_dict)
             # Update model on image i
             feed_dict.update({tf_lr: lr})
+            l_2 = sess.run(loss_test, feed_dict)
+            print(l_2)
             _ = sess.run(optimizer_2, feed_dict)
             # Compute likelihood of image i with updated model
             l_2 = sess.run(loss_test, feed_dict)
+            print(l_2)
             # Undo update
             sess.run(resetter, resetter_dict)
+            l_2 = sess.run(loss_test, feed_dict)
+            print(l_2)
+            sys.exit()
             recoding_log_likelihoods.extend(l_2)
         plotting._print("Run time for recoding = %ds" % (time.time()-begin))
         recoding_log_likelihoods = np.array(recoding_log_likelihoods)
