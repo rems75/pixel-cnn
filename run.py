@@ -201,7 +201,7 @@ for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
 
         if i > 0:
-            current_trainable_variables = tf.trainable_variables()
+            current_trainable_variables = set(tf.trainable_variables())
             all_models.append(tf.make_template('model_{}'.format(i), model_spec))
             init_pass = all_models[i](x_init, h_init, init=True,
                           dropout_p=args.dropout_p, **model_opt)
