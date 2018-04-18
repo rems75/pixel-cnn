@@ -207,7 +207,7 @@ for i in range(args.nr_gpu):
                           dropout_p=args.dropout_p, **model_opt)
             trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
             for p, pp in zip(trainable_params[0], trainable_params[1]):
-                print(p, pp)
+                print(p.name, p.name.replace('model', 'model_{}', pp.name)
             sys.exit()
 
         # Get loss for each image
