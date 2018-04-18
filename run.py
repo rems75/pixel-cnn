@@ -154,7 +154,7 @@ for i in range(args.nr_gpu):
             new_x_gen.append(out[0])
         else:
             new_x_gen.append(sample_fun(out, args.nr_logistic_mix))
-print('1', len(tf.trainable_variables()))
+
 # add losses and gradients together and get training updates
 tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
@@ -164,16 +164,12 @@ with tf.device('/gpu:0'):
         for j in range(len(grads[0])):
             grads[0][j] += grads[i][j]
     # training op
-    print('1.1', len(tf.trainable_variables()))
     current_variables = tf.global_variables()
     param_updates, adam_updates = nn.adam_updates(
         all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)
-    print('1.2', len(tf.trainable_variables()))
     optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
-    print('1.3', len(tf.trainable_variables()))
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 
-print('2', len(tf.trainable_variables()))
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
 bits_per_dim_test = loss_gen_test[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -194,7 +190,7 @@ saver = tf.train.Saver(tf.global_variables())
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
-print('3', len(tf.trainable_variables()))
+print('1', len(tf.trainable_variables()))
 
 trainable_params = [all_params]
 all_models = [model]
@@ -206,8 +202,11 @@ for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
 
         if i > 0:
+            print('2', len(tf.trainable_variables()))
             all_models.append(tf.make_template('model_{}'.format(i), model_spec))
-            init_pass = all_models[i](x_init, h_init, init=True, dropout_p=args.dropout_p, **model_opt)
+            print('3', len(tf.trainable_variables()))
+            init_pass = all_models[i](x_init, h_init, init=True,
+                          dropout_p=args.dropout_p, **model_opt)
             trainable_params.append(list(set(tf.trainable_variables()) - set().union(*trainable_params)))
             print(len(trainable_params[0]))
             print(len(trainable_params[1]))
