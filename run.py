@@ -190,7 +190,6 @@ saver = tf.train.Saver(tf.global_variables())
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
-print('1', len(tf.trainable_variables()))
 
 trainable_params = [all_params]
 all_models = [model]
@@ -202,12 +201,11 @@ for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
 
         if i > 0:
-            print('2', len(tf.trainable_variables()))
+            current_trainable_variables = tf.trainable_variables()
             all_models.append(tf.make_template('model_{}'.format(i), model_spec))
-            print('3', len(tf.trainable_variables()))
             init_pass = all_models[i](x_init, h_init, init=True,
                           dropout_p=args.dropout_p, **model_opt)
-            trainable_params.append(list(set(tf.trainable_variables()) - set().union(*trainable_params)))
+            trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
             print(len(trainable_params[0]))
             print(len(trainable_params[1]))
             sys.exit()
