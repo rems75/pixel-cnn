@@ -213,7 +213,7 @@ for i in range(args.nr_gpu):
       trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
       trainable_params[i].sort(key=lambda v: v.name)
       ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
-      maintain_averages_op = tf.group(ema.apply(all_params))
+      maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
 
     # Get loss for each image
     out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
