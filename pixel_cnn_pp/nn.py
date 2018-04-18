@@ -248,7 +248,6 @@ def conv2d(x, num_filters, filter_size=[3,3], stride=[1,1], pad='SAME', nonlinea
                               initializer=tf.constant_initializer(0.), trainable=True)
 
         # use weight normalization (Salimans & Kingma, 2016)
-        print(g)
         W = tf.reshape(g, [1, 1, 1, num_filters]) * tf.nn.l2_normalize(V, [0, 1, 2])
 
         # calculate convolutional layer output
