@@ -132,11 +132,12 @@ init_pass = model(x_init, h_init, init=True, dropout_p=args.dropout_p, **model_o
 
 # keep track of moving average
 all_params = tf.trainable_variables()
+all_params.sort(key=lambda v: v.name)
 ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
 maintain_averages_op = tf.group(ema.apply(all_params))
 ema_params = [ema.average(p) for p in all_params]
-for p in ema_params:
-  print(p)
+for p, pp in zip(ema_params, all_params):
+  print(p, pp)
 sys.exit()
 
 # get loss gradients over multiple GPUs + sampling
@@ -201,7 +202,6 @@ loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_a
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
 trainable_params = [all_params]
-trainable_params[0].sort(key=lambda v: v.name)
 all_models = [model]
 
 # get loss gradients over multiple GPUs + sampling
