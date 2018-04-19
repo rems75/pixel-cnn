@@ -197,6 +197,7 @@ loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_a
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
 trainable_params = [all_params]
+trainable_params[0].sort(key=lambda v: v.name)
 all_models = [model]
 
 # get loss gradients over multiple GPUs + sampling
