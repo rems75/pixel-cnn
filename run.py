@@ -135,6 +135,10 @@ all_params = tf.trainable_variables()
 ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
 maintain_averages_op = tf.group(ema.apply(all_params))
 ema_params = [ema.average(p) for p in all_params]
+for p in ema_params:
+  print(p)
+sys.exit()
+
 # get loss gradients over multiple GPUs + sampling
 grads = []
 loss_gen = []
