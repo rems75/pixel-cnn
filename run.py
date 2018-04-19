@@ -319,7 +319,7 @@ with tf.Session() as sess:
       sess.run(resetter, resetter_dict)
       l_2 = sess.run(loss_test, feed_dict)
       print(l_2)
-      sys.exit()
+      print()
       recoding_log_likelihoods.extend(l_2)
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)

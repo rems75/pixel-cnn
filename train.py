@@ -24,8 +24,10 @@ from utils import plotting
 # -----------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 # data I/O
-parser.add_argument('-i', '--data_dir', type=str, default='data', help='Location for the dataset')
-parser.add_argument('-o', '--model_dir', type=str, default='save', help='Location for parameter checkpoints and samples')
+parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
+    'PT_DATA_DIR', 'data'), help='Location for the dataset')
+parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
+    'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
 parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
 parser.add_argument('-t', '--save_interval', type=int, default=20, help='Every how many epochs to write checkpoint/samples?')
