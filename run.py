@@ -221,7 +221,7 @@ for i in range(args.nr_gpu):
     loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
     # Get loss for each image
-    out = all_models[i](xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
+    out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=0, **model_opt)
     loss_test.append(loss_fun_2(xs_single[i], out))
 
     # gradients
