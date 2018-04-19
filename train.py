@@ -157,7 +157,7 @@ with tf.device('/gpu:0'):
     # training op
     current_variables = tf.global_variables()
     param_updates, adam_updates = nn.adam_updates(
-        all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)    
+        all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)
     optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
     adam_variables = list(set(tf.global_variables()) - set(current_variables))
 

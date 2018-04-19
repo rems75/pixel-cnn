@@ -274,7 +274,8 @@ if not os.path.exists(args.model_dir):
   os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
-with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+# with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+with tf.Session() as sess:
   begin = time.time()
 
   # init
@@ -319,16 +320,16 @@ with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
       # Update model on image i
       feed_dict.update({tf_lr: lr})
       l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
+      # print(l_2)
       _ = sess.run(optimizer_2, feed_dict)
       # Compute likelihood of image i with updated model
-      l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
+      # l_2 = sess.run(loss_test, feed_dict)
+      # print(l_2)
       # Undo update
       sess.run(resetter, resetter_dict)
-      l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
-      sys.exit()
+      # l_2 = sess.run(loss_test, feed_dict)
+      # print(l_2)
+      # sys.exit()
       recoding_log_likelihoods.extend(l_2)
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)
