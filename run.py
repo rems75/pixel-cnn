@@ -307,7 +307,7 @@ with tf.Session() as sess:
 
   # compute pseudo-counts
   if args.compute_pseudo_counts:
-    recoding_log_likelihoods, pseudo_counts, pseudo_counts_approx = [], [], []
+    recoding_log_likelihoods = []
     for d in data_single:
       feed_dict = make_feed_dict(d, single=True)
       feed_dict.update({tf_lr: lr})
@@ -327,8 +327,8 @@ with tf.Session() as sess:
       true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
       true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
 
-      pseudo_counts.extend(true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood))
-      pseudo_counts_approx.extend(true_likelihood / (true_recoding_likelihood - true_likelihood))
+      pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
+      pseudo_counts_approx = true_likelihood / (true_recoding_likelihood - true_likelihood)
 
       with open(os.path.join(args.model_dir,"pseudo_counts_"+str(args.action)+".pkl"), 'wb') as f:
         pickle.dump(pseudo_counts, f)

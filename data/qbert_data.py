@@ -49,7 +49,7 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
     with open(os.path.join(path, filename+"_rest.pkl"), "rb") as f:
       downsampled, actions, rewards, terms = pickle.load(f)
     # Add a bit of black around downsampled states so their size is a multiple of 4.
-    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 42, 2))), axis=2)[:10000]
+    downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 42, 2))), axis=2)[:100]
     downsampled = np.concatenate((downsampled, np.zeros((downsampled.shape[0], 2, 44))), axis=1)
     if subset == 'all':
         new_actions = action + np.zeros(actions.shape, dtype=np.int32) if action is not None else actions
