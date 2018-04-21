@@ -14,6 +14,7 @@ import json
 import argparse
 import time
 import pickle
+import ipdb
 
 import numpy as np
 import tensorflow as tf
@@ -323,6 +324,7 @@ with tf.Session() as sess:
     with open(os.path.join(args.model_dir,"recoding_"+str(args.action)+".pkl"), 'wb') as f:
       pickle.dump(recoding_log_likelihoods, f)
     pseudo_counts, pseudo_counts_approx = [], []
+    ipdb.set_trace()
     if args.action is not None:
       true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
       true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
