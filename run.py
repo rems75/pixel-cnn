@@ -14,7 +14,6 @@ import json
 import argparse
 import time
 import pickle
-import ipdb
 
 import numpy as np
 import tensorflow as tf
@@ -208,6 +207,10 @@ all_models = [model]
 # get loss gradients over multiple GPUs + sampling
 grads_2, loss_gen_2, loss_test, optimizer_2, init_ph, resetter = [], [], [], [], [], []
 
+# create placeholders to reset the weights of the networks
+for p in trainable_params[0]:
+  pp = tf.placeholder(tf.float32, shape=p.shape)
+
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
 
@@ -226,7 +229,7 @@ for i in range(args.nr_gpu):
     loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
     # Get loss for each image
-    out = all_models[i](xs_single[i], hs_single[i], ema=ema, dropout_p=0, **model_opt)
+    out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=0, **model_opt)
     loss_test.append(loss_fun_2(xs_single[i], out))
 
     # gradients
@@ -237,11 +240,9 @@ for i in range(args.nr_gpu):
       trainable_params[i], grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
     optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
-    init_ph.append([])
+    # create ops to reset the weights of the networks
     reset = []
-    for p in trainable_params[i]:
-      pp = tf.placeholder(tf.float32, shape=p.shape)
-      init_ph[i].append(pp)
+    for pp, p in zip(init_ph, trainable_params[i]):
       reset.append(p.assign(pp))
 
     resetter.append(tf.group(*reset))
@@ -286,9 +287,11 @@ with tf.Session() as sess:
   # init
   data.reset()  # rewind the iterator back to 0 to do one full epoch
   ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
+  plotting._print('initializing parameters')
+  sess.run(initializer)
   plotting._print('restoring parameters from', ckpt_file)
   saver.restore(sess, ckpt_file)
-  sess.run(initializer)
+  plotting._print('parameters restored from', ckpt_file)
   resetter_dict = {}
   for ph in init_ph:
     resetter_dict.update(dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, ph)]))
@@ -326,7 +329,6 @@ with tf.Session() as sess:
     with open(os.path.join(args.model_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
       pickle.dump(recoding_log_likelihoods, f)
     pseudo_counts, pseudo_counts_approx = [], []
-    ipdb.set_trace()
     if args.action is not None:
       true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
       true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
