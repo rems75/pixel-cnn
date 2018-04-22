@@ -209,7 +209,7 @@ grads_2, loss_gen_2, loss_test, optimizer_2, init_ph, resetter = [], [], [], [],
 
 # create placeholders to reset the weights of the networks
 for p in trainable_params[0]:
-  pp = tf.placeholder(tf.float32, shape=p.shape)
+  init_ph.append(tf.placeholder(tf.float32, shape=p.shape))
 
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
@@ -242,8 +242,8 @@ for i in range(args.nr_gpu):
 
     # create ops to reset the weights of the networks
     reset = []
-    for pp, p in zip(init_ph, trainable_params[i]):
-      reset.append(p.assign(pp))
+    for ph, p in zip(init_ph, trainable_params[i]):
+      reset.append(p.assign(ph))
 
     resetter.append(tf.group(*reset))
 
@@ -293,8 +293,8 @@ with tf.Session() as sess:
   saver.restore(sess, ckpt_file)
   plotting._print('parameters restored from', ckpt_file)
   resetter_dict = {}
-  for ph in init_ph:
-    resetter_dict.update(dict([(pp, a.eval(session=sess)) for a, pp in zip(all_params, ph)]))
+  resetter_dict = dict([(ph, a.eval(session=sess))
+                        for a, ph in zip(trainable_params[0], init_ph)])
   plotting._print("Run time for loading = %ds" % (time.time()-begin))
   plotting._print('starting training')
   begin = time.time()
