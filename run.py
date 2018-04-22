@@ -26,8 +26,12 @@ from utils import plotting
 # -----------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
 # data I/O
-parser.add_argument('-i', '--data_dir', type=str, default='data', help='Location for the dataset')
-parser.add_argument('-o', '--model_dir', type=str, default='save', help='Location for parameter checkpoints and samples')
+parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
+    'PT_DATA_DIR', 'data'), help='Location for the dataset')
+parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
+    'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
+    args.epoch = 0
+parser.add_argument('--epoch', type=int, default=0, help='Model epoch to load from')
 parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
 # model
@@ -277,13 +281,12 @@ if not os.path.exists(args.model_dir):
   os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
-# with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 with tf.Session() as sess:
   begin = time.time()
 
   # init
   data.reset()  # rewind the iterator back to 0 to do one full epoch
-  ckpt_file = os.path.join(args.model_dir,'{}_params_0.cpkt'.format(args.data_set))
+  ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
   plotting._print('restoring parameters from', ckpt_file)
   saver.restore(sess, ckpt_file)
   sess.run(initializer)
@@ -303,7 +306,7 @@ with tf.Session() as sess:
   plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
   begin = time.time()
   log_likelihoods = np.array(log_likelihoods)
-  with open(os.path.join(args.model_dir,"log_likelihoods_"+str(args.action)+".pkl"), 'wb') as f:
+  with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
     pickle.dump(log_likelihoods, f)
 
   # compute pseudo-counts
@@ -321,7 +324,7 @@ with tf.Session() as sess:
       recoding_log_likelihoods.extend(l_2)
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)
-    with open(os.path.join(args.model_dir,"recoding_"+str(args.action)+".pkl"), 'wb') as f:
+    with open(os.path.join(args.model_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
       pickle.dump(recoding_log_likelihoods, f)
     pseudo_counts, pseudo_counts_approx = [], []
     ipdb.set_trace()
@@ -332,7 +335,7 @@ with tf.Session() as sess:
       pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
       pseudo_counts_approx = true_likelihood / (true_recoding_likelihood - true_likelihood)
 
-      with open(os.path.join(args.model_dir,"pseudo_counts_"+str(args.action)+".pkl"), 'wb') as f:
+      with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts, f)
-      with open(os.path.join(args.model_dir,"pseudo_counts_approx_"+str(args.action)+".pkl"), 'wb') as f:
+      with open(os.path.join(args.model_dir,"pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts_approx, f)
