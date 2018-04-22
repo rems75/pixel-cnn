@@ -30,7 +30,6 @@ parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
     'PT_DATA_DIR', 'data'), help='Location for the dataset')
 parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
     'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
-    args.epoch = 0
 parser.add_argument('--epoch', type=int, default=0, help='Model epoch to load from')
 parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
