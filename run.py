@@ -299,15 +299,15 @@ with tf.Session() as sess:
 
   # compute likelihood over data
   log_likelihoods = []
-  for d in data:
-    feed_dict = make_feed_dict(d)
-    l = np.array(sess.run(loss_gen_test, feed_dict))
-    log_likelihoods.extend(np.reshape(l,(-1)))
-  plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
-  begin = time.time()
-  log_likelihoods = np.array(log_likelihoods)
-  with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-    pickle.dump(log_likelihoods, f)
+  # for d in data:
+  #   feed_dict = make_feed_dict(d)
+  #   l = np.array(sess.run(loss_gen_test, feed_dict))
+  #   log_likelihoods.extend(np.reshape(l,(-1)))
+  # plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
+  # begin = time.time()
+  # log_likelihoods = np.array(log_likelihoods)
+  # with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+  #   pickle.dump(log_likelihoods, f)
 
   # compute pseudo-counts
   if args.compute_pseudo_counts:
