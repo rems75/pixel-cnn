@@ -321,9 +321,8 @@ with tf.Session() as sess:
       sess.run(resetter)
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
-    print(data_points, data_points % 100)
-    if data_points % 100 == 0:
-      plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
+      if data_points % 100 == 0:
+        plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
 
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)
