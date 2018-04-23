@@ -293,10 +293,6 @@ with tf.Session() as sess:
   saver.restore(sess, ckpt_file)
   plotting._print('initializing parameters')
   sess.run(initializer)
-  plotting._print('parameters restored from', ckpt_file)
-  # resetter_dict = {}
-  # resetter_dict = dict([(ph, a.eval(session=sess))
-  #                       for a, ph in zip(trainable_params[0], init_ph)])
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
   begin = time.time()
@@ -325,7 +321,7 @@ with tf.Session() as sess:
       sess.run(resetter)
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
-    if data_points % 10000 == 0:
+    if data_points % 100 == 0:
       plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
 
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
