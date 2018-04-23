@@ -240,7 +240,7 @@ for i in range(args.nr_gpu):
     reset_variables.append([])
     for p in trainable_params[i]:
       v = tf.get_variable("v", [1])
-      reset_variables[i].append(tf.get_variable(p.name+"_reset_"+str(i), p))
+      reset_variables[i].append(tf.get_variable(p.name+"_reset_"+str(i), initializer=p))
 
     # create ops to reset the weights of the networks
     reset = []
