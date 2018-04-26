@@ -265,4 +265,5 @@ with tf.Session() as sess:
 
             # save params
             saver.save(sess, os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
+            plotting._print("Saving %d" % (epoch))
             # np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
