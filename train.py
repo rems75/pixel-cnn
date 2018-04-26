@@ -252,17 +252,17 @@ with tf.Session() as sess:
 
         if epoch % args.save_interval == 0:
 
-            # generate samples from the model
-            sample_x = []
-            for i in range(args.num_samples):
-                sample_x.append(sample_from_model(sess))
-            sample_x = np.concatenate(sample_x,axis=0)
-            img_tile = plotting.img_tile(sample_x[:100], aspect_ratio=1.0, border_color=1.0, stretch=True)
-            img = plotting.plot_img(img_tile, title=args.data_set + ' samples')
-            plotting.plt.savefig(os.path.join(args.model_dir,'%s_sample%d.png' % (args.data_set, epoch)))
-            plotting.plt.close('all')
-            np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
+            # # generate samples from the model
+            # sample_x = []
+            # for i in range(args.num_samples):
+            #     sample_x.append(sample_from_model(sess))
+            # sample_x = np.concatenate(sample_x,axis=0)
+            # img_tile = plotting.img_tile(sample_x[:100], aspect_ratio=1.0, border_color=1.0, stretch=True)
+            # img = plotting.plot_img(img_tile, title=args.data_set + ' samples')
+            # plotting.plt.savefig(os.path.join(args.model_dir,'%s_sample%d.png' % (args.data_set, epoch)))
+            # plotting.plt.close('all')
+            # np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
 
             # save params
             saver.save(sess, os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
-            np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
+            # np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
