@@ -234,7 +234,7 @@ for i in range(args.nr_gpu):
 
     # training op
     param_updates_2, _ = nn.rmsprop_updates(
-      trainable_params[i], grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
+      trainable_params[i], grads_2[i], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
     optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
     # create placeholders to reset the weights of the networks
