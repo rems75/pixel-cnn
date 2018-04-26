@@ -28,7 +28,10 @@ parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
     'PT_DATA_DIR', 'data'), help='Location for the dataset')
 parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
     'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
-parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
+parser.add_argument('--epoch', type=int, default=0,
+                    help='Model epoch to load from')
+parser.add_argument('-ld', '--log_dir', type=str, default='log',
+                    help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
 parser.add_argument('-t', '--save_interval', type=int, default=20, help='Every how many epochs to write checkpoint/samples?')
 parser.add_argument('-r', '--load_params', dest='load_params', action='store_true', help='Restore training from previous model checkpoint?')
@@ -74,9 +77,8 @@ elif args.data_set == 'qbert':
     DataLoader = qbert_data.DataLoader
 else:
     raise("unsupported dataset")
-train_data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, rng=rng, shuffle=True, return_labels=args.class_conditional)
-test_data = DataLoader(args.data_dir, 'test', args.batch_size * args.nr_gpu, shuffle=False, return_labels=args.class_conditional)
-obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
+data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, rng=rng, shuffle=False, return_labels=args.class_conditional)
+obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
 # energy distance or maximum likelihood?
@@ -98,7 +100,7 @@ xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
-    num_labels = train_data.get_num_labels()
+    num_labels = data.get_num_labels()
     y_init = tf.placeholder(tf.int32, shape=(args.init_batch_size,))
     h_init = tf.one_hot(y_init, num_labels)
     y_sample = np.split(np.mod(np.arange(args.batch_size*args.nr_gpu), num_labels), args.nr_gpu)
@@ -160,7 +162,8 @@ with tf.device('/gpu:0'):
     current_variables = tf.global_variables()
     param_updates, rmsprop_updates = nn.rmsprop_updates(
         all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
-    optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
+    optimizer = tf.group(*(param_updates+rmsprop_updates),
+                         maintain_averages_op)
     rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
@@ -207,62 +210,25 @@ if not os.path.exists(args.model_dir):
 test_bpd = []
 lr = args.learning_rate
 with tf.Session() as sess:
-    for epoch in range(args.max_epochs):
-        begin = time.time()
+  begin = time.time()
 
-        # init
-        if epoch == 0:
-            train_data.reset()  # rewind the iterator back to 0 to do one full epoch
-            if args.load_params:
-                ckpt_file = os.path.join(args.model_dir, 'params_' + args.data_set + '.ckpt')
-                plotting._print('restoring parameters from', ckpt_file)
-                saver.restore(sess, ckpt_file)
-            else:
-                plotting._print('initializing the model...')
-                sess.run(initializer)
-                feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
-                sess.run(init_pass, feed_dict)
-            plotting._print('starting training')
+  # init
+  data.reset()  # rewind the iterator back to 0 to do one full epoch
+  ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
+  plotting._print('restoring parameters from', ckpt_file)
+  saver.restore(sess, ckpt_file)
+  plotting._print('starting testing')
 
-        # train for one epoch
-        train_losses = []
-        for d in train_data:
-            feed_dict = make_feed_dict(d)
-            # forward/backward/update model on each gpu
-            lr *= args.lr_decay
-            feed_dict.update({ tf_lr: lr })
-            l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
-            train_losses.append(l)
-        train_loss_gen = np.mean(train_losses)
-        plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
+  # compute likelihood over test data
+  test_losses = []
+  for d in data:
+    feed_dict = make_feed_dict(d)
+    l = sess.run(bits_per_dim_test, feed_dict)
+    test_losses.append(l)
+  test_loss_gen = np.mean(test_losses)
+  test_bpd.append(test_loss_gen)
 
-        # compute likelihood over test data
-        test_losses = []
-        for d in test_data:
-            feed_dict = make_feed_dict(d)
-            l = sess.run(bits_per_dim_test, feed_dict)
-            test_losses.append(l)
-        test_loss_gen = np.mean(test_losses)
-        test_bpd.append(test_loss_gen)
-        plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
-
-        # log progress to console
-        plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
-        sys.stdout.flush()
-
-        if epoch % args.save_interval == 0:
-
-            # generate samples from the model
-            sample_x = []
-            for i in range(args.num_samples):
-                sample_x.append(sample_from_model(sess))
-            sample_x = np.concatenate(sample_x,axis=0)
-            img_tile = plotting.img_tile(sample_x[:100], aspect_ratio=1.0, border_color=1.0, stretch=True)
-            img = plotting.plot_img(img_tile, title=args.data_set + ' samples')
-            plotting.plt.savefig(os.path.join(args.model_dir,'%s_sample%d.png' % (args.data_set, epoch)))
-            plotting.plt.close('all')
-            np.savez(os.path.join(args.model_dir,'%s_sample%d.npz' % (args.data_set, epoch)), sample_x)
-
-            # save params
-            saver.save(sess, os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
-            np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))
+  # log progress to console
+  plotting._print("Time = %ds, test error = %.4f, test bits_per_dim = %.4f, shape = %.4f" % (
+      time.time()-begin, np.prod(obs_shape)*test_loss_gen, test_loss_gen, np.prod(obs_shape)))
+  sys.stdout.flush()

@@ -198,6 +198,25 @@ def adam_updates(params, cost_or_grads, lr=0.001, mom1=0.9, mom2=0.999):
     adam_updates.append(t.assign_add(1))
     return updates, adam_updates
 
+def rmsprop_updates(params, cost_or_grads, lr=0.001, mom=0.9, dec=0.95, eps=1e-4):
+    ''' RMSProp optimizer '''
+    updates = []
+    rmsprop_updates = []
+    if type(cost_or_grads) is not list:
+        grads = tf.gradients(cost_or_grads, params)
+    else:
+        grads = cost_or_grads
+    for p, g in zip(params, grads):
+        ms_g = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_ms_g')
+        ms_g_t = dec*ms_g + (1. - dec)*tf.square(g)
+        v = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
+        v_t = mom*v + lr * g / tf.sqrt(ms_g_t + eps)
+        p_t = p - v_t
+        rmsprop_updates.append(ms_g.assign(ms_g_t))
+        rmsprop_updates.append(v.assign(v_t))
+        updates.append(p.assign(p_t))
+    return updates, rmsprop_updates
+
 def get_name(layer_name, counters):
     ''' utlity for keeping track of layer names '''
     if not layer_name in counters:

@@ -57,10 +57,10 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
         downsampled = np.concatenate((downsampled, np.zeros((extra, 44, 44))), axis=0)
         new_actions = np.concatenate((new_actions, np.zeros((extra), dtype=np.int32)), axis=0)
     states = downsampled.reshape(downsampled.shape+(1,))
-    dataset_size = states.shape[0]
+    dataset_size = states.shape[0] - extend_to
     # train_set_size = 9 * int(dataset_size / 10)
     train_set_size = dataset_size
-    test_set_size = dataset_size - train_set_size
+    test_set_size = extend_to
     if subset == 'train':
         _print("The train set size is {}".format(train_set_size))
         return states[:train_set_size], actions[:train_set_size], actions[:train_set_size]

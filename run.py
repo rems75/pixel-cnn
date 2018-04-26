@@ -174,10 +174,10 @@ with tf.device('/gpu:0'):
       grads[0][j] += grads[i][j]
   # training op
   current_variables = tf.global_variables()
-  param_updates, adam_updates = nn.adam_updates(
-    all_params, grads[0], lr=tf_lr, mom1=0.95, mom2=0.9995)
-  optimizer = tf.group(*(param_updates+adam_updates), maintain_averages_op)
-  adam_variables = list(set(tf.global_variables()) - set(current_variables))
+  param_updates, rmsprop_updates = nn.rmsprop_updates(
+      all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
+  optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
+  rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -194,6 +194,7 @@ def sample_from_model(sess):
   return np.concatenate(x_gen, axis=0)
 
 # save
+original_variables = tf.global_variables()
 saver = tf.train.Saver(tf.global_variables())
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
@@ -232,7 +233,7 @@ for i in range(args.nr_gpu):
     grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
     # training op
-    param_updates_2, _ = nn.adam_updates(
+    param_updates_2, _ = nn.rmsprop_updates(
       trainable_params[i], grads_2[i], lr=tf_lr, mom1=0.95, mom2=0.9995)
     optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
 
@@ -250,7 +251,10 @@ for i in range(args.nr_gpu):
     resetter.append(tf.group(*reset))
 
 # init
-initializer = tf.global_variables_initializer()
+initializer = tf.variables_initializer(
+    list(set(tf.global_variables()) - set(original_variables)),
+    name='init'
+)
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False, single=False):
@@ -278,6 +282,7 @@ def make_feed_dict(data, init=False, single=False):
         feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
   return feed_dict
 
+
 # //////////// perform training //////////////
 if not os.path.exists(args.model_dir):
   os.makedirs(args.model_dir)
@@ -299,15 +304,15 @@ with tf.Session() as sess:
 
   # compute likelihood over data
   log_likelihoods = []
-  # for d in data:
-  #   feed_dict = make_feed_dict(d)
-  #   l = np.array(sess.run(loss_gen_test, feed_dict))
-  #   log_likelihoods.extend(np.reshape(l,(-1)))
-  # plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
-  # begin = time.time()
-  # log_likelihoods = np.array(log_likelihoods)
-  # with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-  #   pickle.dump(log_likelihoods, f)
+  for d in data:
+    feed_dict = make_feed_dict(d)
+    l = np.array(sess.run(loss_gen_test, feed_dict))
+    log_likelihoods.extend(np.reshape(l,(-1)))
+  plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
+  begin = time.time()
+  log_likelihoods = np.array(log_likelihoods)
+  with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+    pickle.dump(log_likelihoods, f)
 
   # compute pseudo-counts
   if args.compute_pseudo_counts:
@@ -321,7 +326,7 @@ with tf.Session() as sess:
       sess.run(resetter)
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
-      if data_points % 100 == 0:
+      if data_points % 10000 == 0:
         plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
 
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
