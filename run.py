@@ -41,7 +41,7 @@ parser.add_argument('-c', '--class_conditional', dest='class_conditional', actio
 parser.add_argument('-ed', '--energy_distance', dest='energy_distance', action='store_true', help='use energy distance in place of likelihood')
 # optimization
 parser.add_argument('-l', '--learning_rate', type=float, default=0.001, help='Base learning rate')
-parser.add_argument('-e', '--lr_decay', type=float, default=0.999995, help='Learning rate decay, applied every step of the optimization')
+parser.add_argument('-e', '--lr_decay', type=float, default=1.0, help='Learning rate decay, applied every step of the optimization')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size during training per GPU')
 parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
 parser.add_argument('-p', '--dropout_p', type=float, default=0.5, help='Dropout strength (i.e. 1 - keep_prob). 0 = No dropout, higher = more dropout.')
@@ -320,15 +320,10 @@ with tf.Session() as sess:
     for d in data_single:
       feed_dict = make_feed_dict(d, single=True)
       feed_dict.update({tf_lr: lr})
-      l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
       _ = sess.run(optimizer_2, feed_dict)
       l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
       # Undo update
       sess.run(resetter)
-      l_2 = sess.run(loss_test, feed_dict)
-      print(l_2)
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
       if data_points % 10000 == 0:
@@ -340,11 +335,14 @@ with tf.Session() as sess:
       pickle.dump(recoding_log_likelihoods, f)
     pseudo_counts, pseudo_counts_approx = [], []
     if args.action is not None:
-      true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
-      true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
+      log_likelihoods -= np.log(actions_counts[args.action] / num_actions)
+      recoding_log_likelihoods -= np.log((actions_counts[args.action] + 1) / (num_actions + 1))
+      # true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
+      # true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
 
-      pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
-      pseudo_counts_approx = true_likelihood / (true_recoding_likelihood - true_likelihood)
+      # pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
+      pg = np.max(recoding_log_likelihoods - log_likelihoods, 0)
+      pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
 
       with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts, f)
