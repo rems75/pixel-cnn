@@ -320,10 +320,15 @@ with tf.Session() as sess:
     for d in data_single:
       feed_dict = make_feed_dict(d, single=True)
       feed_dict.update({tf_lr: lr})
+      l_2 = sess.run(loss_test, feed_dict)
+      print(l_2)
       _ = sess.run(optimizer_2, feed_dict)
       l_2 = sess.run(loss_test, feed_dict)
+      print(l_2)
       # Undo update
       sess.run(resetter)
+      l_2 = sess.run(loss_test, feed_dict)
+      print(l_2)
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
       if data_points % 10000 == 0:
