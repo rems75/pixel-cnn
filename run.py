@@ -177,7 +177,6 @@ with tf.device('/gpu:0'):
       grads[0][j] += grads[i][j]
   # training op
   current_variables = tf.global_variables()
-  print('1')
   param_updates, rmsprop_updates = nn.rmsprop_updates(
       all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
   # optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
@@ -239,7 +238,6 @@ for i in range(args.nr_gpu):
     grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
     # training op
-    print('2', i)
     param_updates_2, _ = nn.rmsprop_updates(
       trainable_params[i], grads_2[i], init_rmsp=rmsprop_variables,
       lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
@@ -247,9 +245,12 @@ for i in range(args.nr_gpu):
 
     # create placeholders to reset the weights of the networks
     reset_variables.append([])
-    for p_0, p in zip(trainable_params[0], trainable_params[i]):
-      print(p_0, p)
-      v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
+    # for p_0, p in zip(trainable_params[0], trainable_params[i]):
+    #   v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
+    #   reset_variables[i].append(v)
+    for p in trainable_params[i]:
+      v = tf.get_variable(p.name.split(
+          ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
       reset_variables[i].append(v)
 
     # create ops to reset the weights of the networks
@@ -309,6 +310,15 @@ with tf.Session() as sess:
   saver.restore(sess, ckpt_file)
   plotting._print('initializing parameters')
   sess.run(initializer)
+  plotting._print('creating reset operation')
+  for i, p in enumerate(trainable_params[0]):
+    init_p = p.eval(session=sess)
+    print
+    print(p.name)
+    for r_v in reset_variables:
+      print(r_v.name)
+      sess.run(r_v[i].assign(init_p))
+  sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
   begin = time.time()
