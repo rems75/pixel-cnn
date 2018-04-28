@@ -198,17 +198,21 @@ def adam_updates(params, cost_or_grads, lr=0.001, mom1=0.9, mom2=0.999):
     adam_updates.append(t.assign_add(1))
     return updates, adam_updates
 
-def rmsprop_updates(params, cost_or_grads, init_rmsp=[], lr=0.001, mom=0.9, dec=0.95, eps=1e-4):
+def rmsprop_updates(params, cost_or_grads, lr=0.001, mom=0.9, dec=0.95, eps=1e-4):
     ''' RMSProp optimizer '''
     updates = []
     rmsprop_updates = []
+    rmsprop_variables = []
     if type(cost_or_grads) is not list:
         grads = tf.gradients(cost_or_grads, params)
     else:
         grads = cost_or_grads
-    for i, [p, g] in enumerate(zip(params, grads)):
-        ms_g = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_ms_g')
-        v = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
+    for p, g in zip(params, grads):
+        ms_g = tf.Variable(tf.zeros(p.get_shape()),
+                        name=p.name.split(":")[0]+'_rmsprop_ms_g')
+        v = tf.Variable(tf.zeros(p.get_shape()),
+                        name=p.name.split(":")[0]+'_rmsprop_v')
+        rmsprop_variables.append([p, ms_g, v])
         # if init_rmsp:
         #     ms_g = tf.get_variable(p.name + '_rmsprop_ms_g', initializer=init_rmsp[2*i])
         #     v = tf.get_variable(p.name + '_rmsprop_v', initializer=init_rmsp[2*i+1])
@@ -218,7 +222,7 @@ def rmsprop_updates(params, cost_or_grads, init_rmsp=[], lr=0.001, mom=0.9, dec=
         rmsprop_updates.append(ms_g.assign(ms_g_t))
         rmsprop_updates.append(v.assign(v_t))
         updates.append(p.assign(p_t))
-    return updates, rmsprop_updates
+    return updates, rmsprop_updates, rmsprop_variables
 
 def get_name(layer_name, counters):
     ''' utlity for keeping track of layer names '''

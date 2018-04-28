@@ -158,7 +158,7 @@ with tf.device('/gpu:0'):
             grads[0][j] += grads[i][j]
     # training op
     current_variables = tf.global_variables()
-    param_updates, rmsprop_updates = nn.rmsprop_updates(
+    param_updates, rmsprop_updates, _ = nn.rmsprop_updates(
         all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
     optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
     rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))

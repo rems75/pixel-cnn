@@ -175,10 +175,9 @@ with tf.device('/gpu:0'):
       grads[0][j] += grads[i][j]
   # training op
   current_variables = tf.global_variables()
-  param_updates, rmsprop_updates = nn.rmsprop_updates(
+  param_updates, rmsprop_updates, rmsprop_original = nn.rmsprop_updates(
       all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
   optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
-  rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -204,11 +203,11 @@ sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
 trainable_params = [all_params]
 trainable_params[0].sort(key=lambda v: v.name)
-rmsprop_variables.sort(key=lambda v: v.name)
+rmsprop_original.sort(key=lambda r: r[0].name)
 all_models = [model]
 
 # get loss gradients over multiple GPUs + sampling
-grads_2, loss_gen_2, loss_test, optimizer_2, reset_variables, resetter = [], [], [], [], [], []
+grads_2, loss_gen_2, loss_test, optimizer_2, reset_variables, resetter, rmsprop_variables = [], [], [], [], [], [], []
 
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
@@ -235,10 +234,11 @@ for i in range(args.nr_gpu):
     grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
     # training op
-    param_updates_2, _ = nn.rmsprop_updates(
-      trainable_params[i], grads_2[i], init_rmsp=rmsprop_variables,
+    param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
+      trainable_params[i], grads_2[i],
       lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
     optimizer_2.append(tf.group(*param_updates_2))
+    rmsprop_variables.append(rmsprop_variables_i)
 
     # create placeholders to reset the weights of the networks
     reset_variables.append([])
@@ -308,10 +308,19 @@ with tf.Session() as sess:
   plotting._print('initializing parameters')
   sess.run(initializer)
   plotting._print('creating reset operation')
-  for i, p in enumerate(trainable_params[0]):
-    init_p = p.eval(session=sess)
+  for i, rms in enumerate(rmsprop_original):
+    print(rms[0].name)
+    print(rms[1].name)
+    print(rms[2].name)
+    init_rms = sess.run(rms)
     for r_v in reset_variables:
-      sess.run(r_v[i].assign(init_p))
+      print(r_v.name)
+      sess.run(r_v[i].assign(init_rms[0]))
+    for r_rms in rmsprop_variables:
+      print(r_rms[i][1].name)
+      print(r_rms[i][2].name)
+      sess.run(r_rms[i][1].assign(init_rms[1]))
+      sess.run(r_rms[i][2].assign(init_rms[2]))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
