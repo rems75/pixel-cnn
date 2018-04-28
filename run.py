@@ -317,6 +317,7 @@ plotting._print("Run time for preparation = %ds" % (time.time()-begin))
 plotting._print('starting training')
 begin = time.time()
 
+print(trainable_params[0][0].eval(session=sess))
 print(trainable_params[1][0].eval(session=sess))
 sys.exit()
 
