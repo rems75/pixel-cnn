@@ -155,11 +155,13 @@ for i in range(args.nr_gpu):
     # gradients
     grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
     # test
-    out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
+    # out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
+    out = model(xs[i], hs[i], ema=None, dropout_p=0., **model_opt)
     loss_gen_test.append(loss_fun(xs[i], out))
 
     # sample
-    out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
+    # out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
+    out = model(xs[i], h_sample[i], ema=None, dropout_p=0, **model_opt)
     if args.energy_distance:
       new_x_gen.append(out[0])
     else:
@@ -178,6 +180,7 @@ with tf.device('/gpu:0'):
   print('1')
   param_updates, rmsprop_updates = nn.rmsprop_updates(
       all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
+  # optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
   optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
   rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
@@ -221,8 +224,8 @@ for i in range(args.nr_gpu):
               dropout_p=args.dropout_p, **model_opt)
       trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
       trainable_params[i].sort(key=lambda v: v.name)
-      ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
-      maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
+      # ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
+      # maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
 
     # Get loss for each image
     out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
