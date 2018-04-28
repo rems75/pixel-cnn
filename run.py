@@ -310,10 +310,7 @@ with tf.Session() as sess:
   plotting._print('creating reset operation')
   for i, p in enumerate(trainable_params[0]):
     init_p = p.eval(session=sess)
-    print
-    print(p.name)
     for r_v in reset_variables:
-      print(r_v[i].name)
       sess.run(r_v[i].assign(init_p))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
