@@ -198,7 +198,7 @@ def adam_updates(params, cost_or_grads, lr=0.001, mom1=0.9, mom2=0.999):
     adam_updates.append(t.assign_add(1))
     return updates, adam_updates
 
-def rmsprop_updates(params, cost_or_grads, lr=0.001, mom=0.9, dec=0.95, eps=1e-4):
+def rmsprop_updates(params, cost_or_grads, init_rmsp=[], lr=0.001, mom=0.9, dec=0.95, eps=1e-4):
     ''' RMSProp optimizer '''
     updates = []
     rmsprop_updates = []
@@ -206,10 +206,14 @@ def rmsprop_updates(params, cost_or_grads, lr=0.001, mom=0.9, dec=0.95, eps=1e-4
         grads = tf.gradients(cost_or_grads, params)
     else:
         grads = cost_or_grads
-    for p, g in zip(params, grads):
+    for i, [p, g] in enumerate(zip(params, grads)):
         ms_g = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_ms_g')
-        ms_g_t = dec*ms_g + (1. - dec)*tf.square(g)
+        print(ms_g)
         v = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
+        # if init_rmsp:
+        #     ms_g = tf.get_variable(p.name + '_rmsprop_ms_g', initializer=init_rmsp[i])
+        #     v = tf.get_variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
+        ms_g_t = dec*ms_g + (1. - dec)*tf.square(g)
         v_t = mom*v + lr * g / tf.sqrt(ms_g_t + eps)
         p_t = p - v_t
         rmsprop_updates.append(ms_g.assign(ms_g_t))

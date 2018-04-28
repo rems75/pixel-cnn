@@ -14,6 +14,7 @@ import json
 import argparse
 import time
 import pickle
+import sys
 
 import numpy as np
 import tensorflow as tf
@@ -174,6 +175,7 @@ with tf.device('/gpu:0'):
       grads[0][j] += grads[i][j]
   # training op
   current_variables = tf.global_variables()
+  print('1')
   param_updates, rmsprop_updates = nn.rmsprop_updates(
       all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
   optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
@@ -195,7 +197,7 @@ def sample_from_model(sess):
 
 # save
 original_variables = tf.global_variables()
-saver = tf.train.Saver(tf.global_variables())
+saver = tf.train.Saver(original_variables)
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
@@ -203,6 +205,7 @@ sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
 
 trainable_params = [all_params]
 trainable_params[0].sort(key=lambda v: v.name)
+rmsprop_variables.sort(key=lambda v: v.name)
 all_models = [model]
 
 # get loss gradients over multiple GPUs + sampling
@@ -218,8 +221,8 @@ for i in range(args.nr_gpu):
               dropout_p=args.dropout_p, **model_opt)
       trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
       trainable_params[i].sort(key=lambda v: v.name)
-      ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
-      maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
+      # ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
+      # maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
 
     # Get loss for each image
     out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
@@ -233,14 +236,16 @@ for i in range(args.nr_gpu):
     grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
     # training op
+    print('2', i)
     param_updates_2, _ = nn.rmsprop_updates(
-      trainable_params[i], grads_2[i], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
-    optimizer_2.append(tf.group(*(param_updates_2), maintain_averages_op))
+      trainable_params[i], grads_2[i], init_rmsp=rmsprop_variables,
+      lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
+    optimizer_2.append(tf.group(*param_updates_2))
 
     # create placeholders to reset the weights of the networks
     reset_variables.append([])
-    for p in trainable_params[i]:
-      v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p)
+    for p_0, p in zip(trainable_params[0], trainable_params[i]):
+      v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
       reset_variables[i].append(v)
 
     # create ops to reset the weights of the networks
@@ -302,6 +307,9 @@ with tf.Session() as sess:
   plotting._print('starting training')
   begin = time.time()
 
+  print(trainable_params[1][0].eval(session=sess))
+  sys.exit()
+
   # compute likelihood over data
   log_likelihoods = []
   for d in data:
@@ -341,10 +349,10 @@ with tf.Session() as sess:
       # true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
 
       # pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
-      pg = np.max(recoding_log_likelihoods - log_likelihoods, 0)
+      pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
       pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
 
-      with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-        pickle.dump(pseudo_counts, f)
+      # with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+      #   pickle.dump(pseudo_counts, f)
       with open(os.path.join(args.model_dir,"pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts_approx, f)
