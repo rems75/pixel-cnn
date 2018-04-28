@@ -136,9 +136,9 @@ init_pass = model(x_init, h_init, init=True, dropout_p=args.dropout_p, **model_o
 
 # keep track of moving average
 all_params = tf.trainable_variables()
-# ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
-# maintain_averages_op = tf.group(ema.apply(all_params))
-# ema_params = [ema.average(p) for p in all_params]
+ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
+maintain_averages_op = tf.group(ema.apply(all_params))
+ema_params = [ema.average(p) for p in all_params]
 
 # get loss gradients over multiple GPUs + sampling
 grads = []
@@ -155,13 +155,11 @@ for i in range(args.nr_gpu):
     # gradients
     grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
     # test
-    # out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
-    out = model(xs[i], hs[i], ema=None, dropout_p=0., **model_opt)
+    out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
     loss_gen_test.append(loss_fun(xs[i], out))
 
     # sample
-    # out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
-    out = model(xs[i], h_sample[i], ema=None, dropout_p=0, **model_opt)
+    out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
     if args.energy_distance:
       new_x_gen.append(out[0])
     else:
@@ -179,8 +177,7 @@ with tf.device('/gpu:0'):
   current_variables = tf.global_variables()
   param_updates, rmsprop_updates = nn.rmsprop_updates(
       all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
-  # optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
-  optimizer = tf.group(*(param_updates+rmsprop_updates))
+  optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
   rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
@@ -316,7 +313,7 @@ with tf.Session() as sess:
     print
     print(p.name)
     for r_v in reset_variables:
-      print(r_v.name)
+      print(r_v[i].name)
       sess.run(r_v[i].assign(init_p))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
