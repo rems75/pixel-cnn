@@ -211,8 +211,8 @@ def rmsprop_updates(params, cost_or_grads, init_rmsp=[], lr=0.001, mom=0.9, dec=
         print(ms_g)
         v = tf.Variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
         # if init_rmsp:
-        #     ms_g = tf.get_variable(p.name + '_rmsprop_ms_g', initializer=init_rmsp[i])
-        #     v = tf.get_variable(tf.zeros(p.get_shape()), p.name + '_rmsprop_v')
+        #     ms_g = tf.get_variable(p.name + '_rmsprop_ms_g', initializer=init_rmsp[2*i])
+        #     v = tf.get_variable(p.name + '_rmsprop_v', initializer=init_rmsp[2*i+1])
         ms_g_t = dec*ms_g + (1. - dec)*tf.square(g)
         v_t = mom*v + lr * g / tf.sqrt(ms_g_t + eps)
         p_t = p - v_t
