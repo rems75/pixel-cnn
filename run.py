@@ -199,6 +199,13 @@ def sample_from_model(sess):
 original_variables = tf.global_variables()
 saver = tf.train.Saver(original_variables)
 
+sess = tf.Session()
+
+ckpt_file = os.path.join(
+    args.model_dir, '{}_params_{}.cpkt'.format(args.data_set, args.epoch))
+plotting._print('restoring parameters from', ckpt_file)
+saver.restore(sess, ckpt_file)
+
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
 loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
 sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
@@ -255,7 +262,7 @@ for i in range(args.nr_gpu):
       reset.append(p.assign(v))
 
     resetter.append(tf.group(*reset))
-sys.exit()
+
 # init
 initializer = tf.variables_initializer(
     list(set(tf.global_variables()) - set(original_variables)),
@@ -294,66 +301,68 @@ if not os.path.exists(args.model_dir):
   os.makedirs(args.model_dir)
 test_bpd = []
 lr = args.learning_rate
-with tf.Session() as sess:
-  begin = time.time()
 
-  # init
-  data.reset()  # rewind the iterator back to 0 to do one full epoch
-  ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
-  plotting._print('restoring parameters from', ckpt_file)
-  saver.restore(sess, ckpt_file)
-  plotting._print('initializing parameters')
-  sess.run(initializer)
-  plotting._print("Run time for preparation = %ds" % (time.time()-begin))
-  plotting._print('starting training')
-  begin = time.time()
+# with tf.Session() as sess:
 
-  print(trainable_params[1][0].eval(session=sess))
-  sys.exit()
+begin = time.time()
 
-  # compute likelihood over data
-  log_likelihoods = []
-  for d in data:
-    feed_dict = make_feed_dict(d)
-    l = np.array(sess.run(loss_gen_test, feed_dict))
-    log_likelihoods.extend(np.reshape(l,(-1)))
-  plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
-  begin = time.time()
-  log_likelihoods = np.array(log_likelihoods)
-  with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-    pickle.dump(log_likelihoods, f)
+# init
+data.reset()  # rewind the iterator back to 0 to do one full epoch
+# ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
+# plotting._print('restoring parameters from', ckpt_file)
+# saver.restore(sess, ckpt_file)
+plotting._print('initializing parameters')
+sess.run(initializer)
+plotting._print("Run time for preparation = %ds" % (time.time()-begin))
+plotting._print('starting training')
+begin = time.time()
 
-  # compute pseudo-counts
-  if args.compute_pseudo_counts:
-    recoding_log_likelihoods, data_points = [], 0
-    for d in data_single:
-      feed_dict = make_feed_dict(d, single=True)
-      feed_dict.update({tf_lr: lr})
-      _ = sess.run(optimizer_2, feed_dict)
-      l_2 = sess.run(loss_test, feed_dict)
-      # Undo update
-      sess.run(resetter)
-      recoding_log_likelihoods.extend(l_2)
-      data_points += args.nr_gpu
-      if data_points % 10000 == 0:
-        plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
+print(trainable_params[1][0].eval(session=sess))
+sys.exit()
 
-    plotting._print("Run time for recoding = %ds" % (time.time()-begin))
-    recoding_log_likelihoods = np.array(recoding_log_likelihoods)
-    with open(os.path.join(args.model_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-      pickle.dump(recoding_log_likelihoods, f)
-    pseudo_counts, pseudo_counts_approx = [], []
-    if args.action is not None:
-      log_likelihoods -= np.log(actions_counts[args.action] / num_actions)
-      recoding_log_likelihoods -= np.log((actions_counts[args.action] + 1) / (num_actions + 1))
-      # true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
-      # true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
+# compute likelihood over data
+log_likelihoods = []
+for d in data:
+  feed_dict = make_feed_dict(d)
+  l = np.array(sess.run(loss_gen_test, feed_dict))
+  log_likelihoods.extend(np.reshape(l,(-1)))
+plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
+begin = time.time()
+log_likelihoods = np.array(log_likelihoods)
+with open(os.path.join(args.model_dir,"log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+  pickle.dump(log_likelihoods, f)
 
-      # pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
-      pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
-      pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
+# compute pseudo-counts
+if args.compute_pseudo_counts:
+  recoding_log_likelihoods, data_points = [], 0
+  for d in data_single:
+    feed_dict = make_feed_dict(d, single=True)
+    feed_dict.update({tf_lr: lr})
+    _ = sess.run(optimizer_2, feed_dict)
+    l_2 = sess.run(loss_test, feed_dict)
+    # Undo update
+    sess.run(resetter)
+    recoding_log_likelihoods.extend(l_2)
+    data_points += args.nr_gpu
+    if data_points % 10000 == 0:
+      plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
 
-      # with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-      #   pickle.dump(pseudo_counts, f)
-      with open(os.path.join(args.model_dir,"pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-        pickle.dump(pseudo_counts_approx, f)
+  plotting._print("Run time for recoding = %ds" % (time.time()-begin))
+  recoding_log_likelihoods = np.array(recoding_log_likelihoods)
+  with open(os.path.join(args.model_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+    pickle.dump(recoding_log_likelihoods, f)
+  pseudo_counts, pseudo_counts_approx = [], []
+  if args.action is not None:
+    log_likelihoods -= np.log(actions_counts[args.action] / num_actions)
+    recoding_log_likelihoods -= np.log((actions_counts[args.action] + 1) / (num_actions + 1))
+    # true_likelihood = np.exp(0 - log_likelihoods) * actions_counts[args.action] / num_actions
+    # true_recoding_likelihood = np.exp(0 - recoding_log_likelihoods) * (actions_counts[args.action] + 1) / (num_actions + 1)
+
+    # pseudo_counts = true_likelihood * (1 - true_recoding_likelihood) / (true_recoding_likelihood - true_likelihood)
+    pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
+    pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
+
+    # with open(os.path.join(args.model_dir,"pseudo_counts_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+    #   pickle.dump(pseudo_counts, f)
+    with open(os.path.join(args.model_dir,"pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+      pickle.dump(pseudo_counts_approx, f)
