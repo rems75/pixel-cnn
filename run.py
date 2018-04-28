@@ -310,15 +310,13 @@ with tf.Session() as sess:
   plotting._print('creating reset operation')
   for i, rms in enumerate(rmsprop_original):
     print(rms[0].name)
-    print(rms[1].name)
-    print(rms[2].name)
+    print(rms[3])
     init_rms = sess.run(rms)
     for r_v in reset_variables:
       print(r_v.name)
       sess.run(r_v[i].assign(init_rms[0]))
     for r_rms in rmsprop_variables:
-      print(r_rms[i][1].name)
-      print(r_rms[i][2].name)
+      print(r_rms[i][3])
       sess.run(r_rms[i][1].assign(init_rms[1]))
       sess.run(r_rms[i][2].assign(init_rms[2]))
   sess.run(resetter)
