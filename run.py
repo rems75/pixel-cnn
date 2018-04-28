@@ -313,7 +313,7 @@ with tf.Session() as sess:
     print(rms[3])
     init_rms = sess.run(rms[:3])
     for r_v in reset_variables:
-      print(r_v.name)
+      print(r_v[i].name)
       sess.run(r_v[i].assign(init_rms[0]))
     for r_rms in rmsprop_variables:
       print(r_rms[i][3])
