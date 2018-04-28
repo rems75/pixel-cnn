@@ -307,8 +307,10 @@ with tf.Session() as sess:
   saver.restore(sess, ckpt_file)
   plotting._print('initializing parameters')
   sess.run(initializer)
-  plotting._print('creating reset operation')
+  plotting._print('creating reset operations for {} variables'.format(len(rmsprop_original)))
   for i, rms in enumerate(rmsprop_original):
+    if i > 0 and i % int(len(rmsprop_original) / 10) == 0:
+    plotting._print("  {} variables processed in {} seconds".format(i, time.time()-begin))
     init_rms = sess.run(rms[:3])
     for r_v in reset_variables:
       sess.run(r_v[i].assign(init_rms[0]))
