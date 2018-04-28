@@ -245,6 +245,7 @@ for i in range(args.nr_gpu):
     # create placeholders to reset the weights of the networks
     reset_variables.append([])
     for p_0, p in zip(trainable_params[0], trainable_params[i]):
+      print(p_0, p)
       v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
       reset_variables[i].append(v)
 
@@ -254,7 +255,7 @@ for i in range(args.nr_gpu):
       reset.append(p.assign(v))
 
     resetter.append(tf.group(*reset))
-
+sys.exit()
 # init
 initializer = tf.variables_initializer(
     list(set(tf.global_variables()) - set(original_variables)),
