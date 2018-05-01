@@ -315,10 +315,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     # init_rms = sess.run(rms[:3])
     # for r_v in reset_variables:
     #   t = time.time()
+      # ops.append(r_v[i].assign(rms[0]))
     #   sess.run(r_v[i].assign(rms[0]))
     #   plotting._print("        assigning {} to {} in {} seconds".format(rms[0], r_v[i], time.time()-t))
     for r_rms in rmsprop_variables:
-      ops.extend(r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2]))
+      ops.extend([r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2])])
       # sess.run([r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2])])
   sess.run(ops)
   plotting._print(
