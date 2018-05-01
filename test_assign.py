@@ -12,7 +12,7 @@ with tf.device('/gpu:0'):
 
   t = tf.Variable([6, 120], name='yo')
   t_2 = tf.Variable([6, 120], name='yooo')
-
+  sum = t + t_2
 with tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_placement=True)) as sess:
 
   print("Initializing")
@@ -21,3 +21,5 @@ with tf.Session(config=tf.ConfigProto(log_device_placement=True, allow_soft_plac
   print("Assigning")
   sess.run(t_2.assign(t))
   print("Assign in {} seconds".format(time.time() - begin))
+  t_3 = sess.run(sum)
+  # print(t_3)
