@@ -11,7 +11,7 @@ import tensorflow as tf
 with tf.device('/gpu:0'):
 
   t = tf.Variable([6, 120], name='yo')
-  t_2 = tf.Variable([6, 120], name='yooo')
+  # t_2 = tf.Variable([6, 120], name='yooo')
 
 with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
