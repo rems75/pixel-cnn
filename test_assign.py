@@ -20,8 +20,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
   sess.run(tf.global_variables_initializer())
   begin = time.time()
   print("Assigning")
-  sess.config = config = tf.ConfigProto(
-      log_device_placement=True, allow_soft_placement=True)
   sess.run(t_2.assign(t))
   print("Assign in {} seconds".format(time.time() - begin))
   t_3 = sess.run(sum)

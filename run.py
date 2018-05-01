@@ -296,7 +296,7 @@ if not os.path.exists(args.model_dir):
 test_bpd = []
 lr = args.learning_rate
 
-with tf.Session() as sess:
+with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
 
   begin = time.time()
 
@@ -316,10 +316,11 @@ with tf.Session() as sess:
     #   t = time.time()
     #   sess.run(r_v[i].assign(rms[0]))
     #   plotting._print("        assigning {} to {} in {} seconds".format(rms[0], r_v[i], time.time()-t))
-    # plotting._print("     first assign in {} seconds".format(time.time()-begin))
     for r_rms in rmsprop_variables:
       sess.run(r_rms[i][1].assign(rms[1]))
       sess.run(r_rms[i][2].assign(rms[2]))
+    plotting._print(
+        "     first assign in {} seconds".format(time.time()-begin))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
