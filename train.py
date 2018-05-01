@@ -225,7 +225,7 @@ with tf.Session() as sess:
             plotting._print('starting training')
 
         # train for one epoch
-        train_losses = []
+        train_losses, batch_id = [], 0
         for d in train_data:
             feed_dict = make_feed_dict(d)
             # forward/backward/update model on each gpu
@@ -233,6 +233,9 @@ with tf.Session() as sess:
             feed_dict.update({ tf_lr: lr })
             l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
             train_losses.append(l)
+            batch_id += 1
+            if batch_id % 10000 == 0:
+                plotting._print("     Batch %d, time = %ds" % (batch_id, time.time()-begin))
         train_loss_gen = np.mean(train_losses)
         plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
@@ -265,5 +268,5 @@ with tf.Session() as sess:
 
             # save params
             saver.save(sess, os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
-            plotting._print("Saving %d" % (epoch))
+            plotting._print("Saved %d" % (epoch))
             # np.savez(args.model_dir + '/test_bpd_' + args.data_set + '.npz', test_bpd=np.array(test_bpd))

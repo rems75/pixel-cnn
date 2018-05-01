@@ -242,13 +242,13 @@ for i in range(args.nr_gpu):
 
     # create placeholders to reset the weights of the networks
     reset_variables.append([])
-    # for p_0, p in zip(trainable_params[0], trainable_params[i]):
-    #   v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
-    #   reset_variables[i].append(v)
-    for p in trainable_params[i]:
-      v = tf.get_variable(p.name.split(
-          ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
+    for p_0, p in zip(trainable_params[0], trainable_params[i]):
+      v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), initializer=p_0)
       reset_variables[i].append(v)
+    # for p in trainable_params[i]:
+    #   v = tf.get_variable(p.name.split(
+    #       ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
+    #   reset_variables[i].append(v)
 
     # create ops to reset the weights of the networks
     reset = []
@@ -310,21 +310,20 @@ with tf.Session() as sess:
   plotting._print('creating reset operations for {} variables'.format(len(rmsprop_original)))
   for i, rms in enumerate(rmsprop_original):
     # if i > 0 and i % int(len(rmsprop_original) / 10) == 0:
-    plotting._print("  {} variables processed in {} seconds".format(i, time.time()-begin))
-    init_rms = sess.run(rms[:3])
-    for r_v in reset_variables:
-      sess.run(r_v[i].assign(init_rms[0]))
+    # plotting._print("  {} variables processed in {} seconds".format(i, time.time()-begin))
+    # init_rms = sess.run(rms[:3])
+    # for r_v in reset_variables:
+    #   t = time.time()
+    #   sess.run(r_v[i].assign(rms[0]))
+    #   plotting._print("        assigning {} to {} in {} seconds".format(rms[0], r_v[i], time.time()-t))
+    # plotting._print("     first assign in {} seconds".format(time.time()-begin))
     for r_rms in rmsprop_variables:
-      sess.run(r_rms[i][1].assign(init_rms[1]))
-      sess.run(r_rms[i][2].assign(init_rms[2]))
+      sess.run(r_rms[i][1].assign(rms[1]))
+      sess.run(r_rms[i][2].assign(rms[2]))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
   begin = time.time()
-
-  print(trainable_params[0][0].eval(session=sess))
-  print(trainable_params[1][0].eval(session=sess))
-  sys.exit()
 
   # compute likelihood over data
   log_likelihoods = []
