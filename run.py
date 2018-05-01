@@ -317,8 +317,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     #   sess.run(r_v[i].assign(rms[0]))
     #   plotting._print("        assigning {} to {} in {} seconds".format(rms[0], r_v[i], time.time()-t))
     for r_rms in rmsprop_variables:
-      sess.run(r_rms[i][1].assign(rms[1]))
-      sess.run(r_rms[i][2].assign(rms[2]))
+      sess.run([r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2])])
     plotting._print(
         "     first assign in {} seconds".format(time.time()-begin))
   sess.run(resetter)
