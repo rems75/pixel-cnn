@@ -15,6 +15,7 @@ with tf.device('/gpu:0'):
 
 with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
+  print("Initializing")
   sess.run(tf.global_variables_initializer())
   begin = time.time()
   print("Assigning")
