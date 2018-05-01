@@ -310,21 +310,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
   plotting._print('creating reset operations for {} variables'.format(len(rmsprop_original)))
   ops = []
   for i, rms in enumerate(rmsprop_original[:8]):
-    # if i > 0 and i % int(len(rmsprop_original) / 10) == 0:
-    # plotting._print("  {} variables processed in {} seconds".format(i, time.time()-begin))
-    # init_rms = sess.run(rms[:3])
     for r_v in reset_variables:
-    #   t = time.time()
       ops.append(r_v[i].assign(rms[0]))
-    #   sess.run(r_v[i].assign(rms[0]))
-    #   plotting._print("        assigning {} to {} in {} seconds".format(rms[0], r_v[i], time.time()-t))
     for r_rms in rmsprop_variables:
       ops.extend([r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2])])
-      # sess.run([r_rms[i][1].assign(rms[1]), r_rms[i][2].assign(rms[2])])
   sess.run(ops)
   plotting._print(
-      "     first assign in {} seconds".format(time.time()-begin))
-  sys.exit()
+      "     reset operations created in {} seconds".format(time.time()-begin))
   sess.run(resetter)
   plotting._print("Run time for preparation = %ds" % (time.time()-begin))
   plotting._print('starting training')
