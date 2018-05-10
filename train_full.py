@@ -311,7 +311,7 @@ with tf.Session() as sess:
       loading = False
       ckpt_file = os.path.join(
           data_dir, '{}_params_{}.cpkt'.format(args.data_set, epoch))
-      if os.path.exists(ckpt_file):
+      if os.path.exists(ckpt_file + '.index'):
         plotting._print('restoring parameters from', ckpt_file)
         saver.restore(sess, ckpt_file)
         loading = True
