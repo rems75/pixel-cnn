@@ -260,31 +260,26 @@ for i in range(args.nr_gpu):
 initializer = tf.global_variables_initializer()
 
 # turn numpy inputs into feed_dict for use with tensorflow
-def make_feed_dict(data, init=False, single=False):
+def make_feed_dict(data, init=False):
   if type(data) is tuple:
-  x, y = data
+    x, y = data
   else:
-  x = data
-  y = None
+    x = data
+    y = None
   # input to pixelCNN is scaled from uint8 [0,255] to float in range [-1,1]
   x = np.cast[np.float32]((x - 127.5) / 127.5)
   if init:
-  feed_dict = {x_init: x}
-  if y is not None:
-    feed_dict.update({y_init: y})
-  else:
-  x = np.split(x, args.nr_gpu)
-  if single:
-    feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
+    feed_dict = {x_init: x}
     if y is not None:
-    y = np.split(y, args.nr_gpu)
-    feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
+      feed_dict.update({y_init: y})
   else:
+    x = np.split(x, args.nr_gpu)
     feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
     if y is not None:
-    y = np.split(y, args.nr_gpu)
-    feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
+      y = np.split(y, args.nr_gpu)
+      feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
   return feed_dict
+
 
 # //////////// perform training //////////////
 if not os.path.exists(data_dir):
