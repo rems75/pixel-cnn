@@ -264,7 +264,7 @@ for i in range(args.nr_gpu):
 initializer = tf.global_variables_initializer()
 
 # turn numpy inputs into feed_dict for use with tensorflow
-def make_feed_dict(data, init=False):
+def make_feed_dict(data, init=False, single=False):
   if type(data) is tuple:
     x, y = data
   else:
@@ -278,10 +278,16 @@ def make_feed_dict(data, init=False):
       feed_dict.update({y_init: y})
   else:
     x = np.split(x, args.nr_gpu)
-    feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
-    if y is not None:
-      y = np.split(y, args.nr_gpu)
-      feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
+    if single:
+      feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
+      if y is not None:
+        y = np.split(y, args.nr_gpu)
+        feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
+    else:
+      feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
+      if y is not None:
+        y = np.split(y, args.nr_gpu)
+        feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
   return feed_dict
 
 
