@@ -212,49 +212,49 @@ grads_2, loss_gen_2, loss_test, optimizer_2, reset_variables, resetter, rmsprop_
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
 
-  if i > 0:
-    current_trainable_variables = set(tf.trainable_variables())
-    all_models.append(tf.make_template('model_{}'.format(i), model_spec))
-    init_pass = all_models[i](x_init, h_init, init=True,
-                dropout_p=args.dropout_p, **model_opt)
-    trainable_params.append(
-      list(set(tf.trainable_variables()) - current_trainable_variables))
-    trainable_params[i].sort(key=lambda v: v.name)
+    if i > 0:
+      current_trainable_variables = set(tf.trainable_variables())
+      all_models.append(tf.make_template('model_{}'.format(i), model_spec))
+      init_pass = all_models[i](x_init, h_init, init=True,
+                  dropout_p=args.dropout_p, **model_opt)
+      trainable_params.append(
+        list(set(tf.trainable_variables()) - current_trainable_variables))
+      trainable_params[i].sort(key=lambda v: v.name)
 
-  # Get loss for each image
-  out = all_models[i](xs_single[i], hs_single[i], ema=None,
-            dropout_p=args.dropout_p, **model_opt)
-  loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
+    # Get loss for each image
+    out = all_models[i](xs_single[i], hs_single[i], ema=None,
+              dropout_p=args.dropout_p, **model_opt)
+    loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
-  # Get loss for each image
-  out = all_models[i](xs_single[i], hs_single[i],
-            ema=None, dropout_p=0, **model_opt)
-  loss_test.append(loss_fun_2(xs_single[i], out))
+    # Get loss for each image
+    out = all_models[i](xs_single[i], hs_single[i],
+              ema=None, dropout_p=0, **model_opt)
+    loss_test.append(loss_fun_2(xs_single[i], out))
 
-  # gradients
-  grads_2.append(tf.gradients(
-    loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
+    # gradients
+    grads_2.append(tf.gradients(
+      loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
-  # training op
-  param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
-    trainable_params[i], grads_2[i],
-    lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
-  optimizer_2.append(tf.group(*param_updates_2))
-  rmsprop_variables.append(rmsprop_variables_i)
+    # training op
+    param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
+      trainable_params[i], grads_2[i],
+      lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
+    optimizer_2.append(tf.group(*param_updates_2))
+    rmsprop_variables.append(rmsprop_variables_i)
 
-  # create placeholders to reset the weights of the networks
-  reset_variables.append([])
-  for p_0, p in zip(trainable_params[0], trainable_params[i]):
-    v = tf.get_variable(p.name.split(
-      ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
-    reset_variables[i].append(v)
+    # create placeholders to reset the weights of the networks
+    reset_variables.append([])
+    for p_0, p in zip(trainable_params[0], trainable_params[i]):
+      v = tf.get_variable(p.name.split(
+        ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
+      reset_variables[i].append(v)
 
-  # create ops to reset the weights of the networks
-  reset = []
-  for v, p in zip(reset_variables[i], trainable_params[i]):
-    reset.append(p.assign(v))
+    # create ops to reset the weights of the networks
+    reset = []
+    for v, p in zip(reset_variables[i], trainable_params[i]):
+      reset.append(p.assign(v))
 
-  resetter.append(tf.group(*reset))
+    resetter.append(tf.group(*reset))
 
 # init
 initializer = tf.global_variables_initializer()
@@ -379,9 +379,9 @@ with tf.Session() as sess:
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)
     log_likelihoods = np.array(log_likelihoods)
-    with open(os.path.join(args.model_dir, "log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+    with open(os.path.join(data_dir, "log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
       pickle.dump(log_likelihoods, f)
-    with open(os.path.join(args.model_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+    with open(os.path.join(data_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
       pickle.dump(recoding_log_likelihoods, f)
     pseudo_counts, pseudo_counts_approx = [], []
     if args.action is not None:
@@ -392,5 +392,5 @@ with tf.Session() as sess:
       pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
       pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
 
-      with open(os.path.join(args.model_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+      with open(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts_approx, f)
