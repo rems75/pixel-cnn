@@ -54,6 +54,10 @@ parser.add_argument('--polyak_decay', type=float, default=0.9995, help='Exponent
 parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many batches of samples to output.')
 # reproducibility
 parser.add_argument('-s', '--seed', type=int, default=1, help='Random seed to use')
+parser.add_argument('--action', type=int, default=None,
+                    help='Action to compute the counts for')
+parser.add_argument('--compute_pseudo_counts',
+                    action='store_true', help='Compute pseudo counts')
 args = parser.parse_args()
 plotting._print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty plotting._print args
 
