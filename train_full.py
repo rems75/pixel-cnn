@@ -88,7 +88,7 @@ train_data = DataLoader(data_dir, 'train', args.batch_size * args.nr_gpu, rng=rn
 test_data = DataLoader(data_dir, 'test', args.batch_size * args.nr_gpu,
                        shuffle=False, return_labels=args.class_conditional, filename=args.batch)
 data_single = DataLoader(data_dir, 'train', args.nr_gpu,
-                         rng=rng, shuffle=False, return_labels=True, action=args.action)
+                         rng=rng, shuffle=False, return_labels=True, action=args.action, filename=args.batch)
 data_single.truncate(train_data.get_num_obs())
 
 obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
