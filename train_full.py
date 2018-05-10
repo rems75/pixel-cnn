@@ -5,7 +5,7 @@ Trains a Pixel-CNN++ generative model on CIFAR-10 or Tiny ImageNet data.
 Uses multiple GPUs, indicated by the flag --nr_gpu
 
 Example usage:
-CUDA_VISIBLE_DEVICES=0,1,2,3 python run.py --nr_gpu 4
+CUDA_VISIBLE_DEVICES=0,1,2,3 python train_double_cnn.py --nr_gpu 4
 """
 
 import os
@@ -13,8 +13,6 @@ import sys
 import json
 import argparse
 import time
-import pickle
-import sys
 
 import numpy as np
 import tensorflow as tf
@@ -27,12 +25,14 @@ from utils import plotting
 parser = argparse.ArgumentParser()
 # data I/O
 parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
-    'PT_DATA_DIR', 'data'), help='Location for the dataset')
+  'PT_DATA_DIR', 'data'), help='Location for the dataset')
 parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
-    'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
-parser.add_argument('--epoch', type=int, default=0, help='Model epoch to load from')
+  'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
+parser.add_argument('--batch', type=str, default='transitions', help='Name of the batch')
 parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
+parser.add_argument('-t', '--save_interval', type=int, default=20, help='Every how many epochs to write checkpoint/samples?')
+parser.add_argument('-r', '--load_params', dest='load_params', action='store_true', help='Restore training from previous model checkpoint?')
 # model
 parser.add_argument('-q', '--nr_resnet', type=int, default=5, help='Number of residual blocks per stage of the model')
 parser.add_argument('-n', '--nr_filters', type=int, default=160, help='Number of filters to use across the model. Higher = larger model.')
@@ -42,10 +42,8 @@ parser.add_argument('-c', '--class_conditional', dest='class_conditional', actio
 parser.add_argument('-ed', '--energy_distance', dest='energy_distance', action='store_true', help='use energy distance in place of likelihood')
 # optimization
 parser.add_argument('-l', '--learning_rate', type=float, default=0.001, help='Base learning rate')
-parser.add_argument('--momentum', type=float, default=0.9,
-                    help='Base nesterov momentum')
-parser.add_argument('-e', '--lr_decay', type=float, default=1.0,
-                    help='Learning rate decay, applied every step of the optimization')
+parser.add_argument('--momentum', type=float, default=0.9, help='Base nesterov momentum')
+parser.add_argument('-e', '--lr_decay', type=float, default=1.0, help='Learning rate decay, applied every step of the optimization')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size during training per GPU')
 parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
 parser.add_argument('-p', '--dropout_p', type=float, default=0.5, help='Dropout strength (i.e. 1 - keep_prob). 0 = No dropout, higher = more dropout.')
@@ -56,9 +54,6 @@ parser.add_argument('--polyak_decay', type=float, default=0.9995, help='Exponent
 parser.add_argument('-ns', '--num_samples', type=int, default=1, help='How many batches of samples to output.')
 # reproducibility
 parser.add_argument('-s', '--seed', type=int, default=1, help='Random seed to use')
-# action for count
-parser.add_argument('--action', type=int, default=None, help='Action to compute the counts for')
-parser.add_argument('--compute_pseudo_counts', action='store_true', help='Compute pseudo counts')
 args = parser.parse_args()
 plotting._print('input args:\n', json.dumps(vars(args), indent=4, separators=(',',':'))) # pretty plotting._print args
 
@@ -81,12 +76,18 @@ elif args.data_set == 'qbert':
   DataLoader = qbert_data.DataLoader
 else:
   raise("unsupported dataset")
-data = DataLoader(args.data_dir, 'all', args.batch_size*args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
-data_single = DataLoader(args.data_dir, 'all', args.nr_gpu, rng=rng, shuffle=False, return_labels=True, action=args.action)
-actions_counts = dict(zip(*data.get_stat_labels()))
-num_actions = data.original_labels.size
-print(actions_counts, num_actions, np.sum(actions_counts.values()))
-obs_shape = data.get_observation_size() # e.g. a tuple (32,32,3)
+
+data_dir = os.path.join(args.data_dir, args.batch)
+
+train_data = DataLoader(data_dir, 'train', args.batch_size * args.nr_gpu, rng=rng,
+                        shuffle=True, return_labels=args.class_conditional, filename=args.batch)
+test_data = DataLoader(data_dir, 'test', args.batch_size * args.nr_gpu,
+                       shuffle=False, return_labels=args.class_conditional, filename=args.batch)
+data_single = DataLoader(data_dir, 'train', args.nr_gpu,
+                         rng=rng, shuffle=False, return_labels=True, action=args.action)
+data_single.truncate(train_data.get_num_obs())
+
+obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
 # energy distance or maximum likelihood?
@@ -94,7 +95,8 @@ if args.energy_distance:
   loss_fun = nn.energy_distance
 else:
   if obs_shape[2] == 1:
-    loss_fun = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x,l,sum_all=True)
+    loss_fun = nn.discretized_mix_logistic_loss_greyscale
+    loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
     sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
     var_per_logistic = 3
   else:
@@ -105,11 +107,12 @@ else:
 # data place holders
 x_init = tf.placeholder(tf.float32, shape=(args.init_batch_size,) + obs_shape)
 xs = [tf.placeholder(tf.float32, shape=(args.batch_size, ) + obs_shape) for i in range(args.nr_gpu)]
-xs_single = [tf.placeholder(tf.float32, shape=(1, ) + obs_shape) for i in range(args.nr_gpu)]
+xs_single = [tf.placeholder(tf.float32, shape=(1, ) + obs_shape)
+       for i in range(args.nr_gpu)]
 
 # if the model is class-conditional we'll set up label placeholders + one-hot encodings 'h' to condition on
 if args.class_conditional:
-  num_labels = data.get_num_labels()
+  num_labels = train_data.get_num_labels()
   y_init = tf.placeholder(tf.int32, shape=(args.init_batch_size,))
   h_init = tf.one_hot(y_init, num_labels)
   y_sample = np.split(np.mod(np.arange(args.batch_size*args.nr_gpu), num_labels), args.nr_gpu)
@@ -117,7 +120,7 @@ if args.class_conditional:
   ys = [tf.placeholder(tf.int32, shape=(args.batch_size,)) for i in range(args.nr_gpu)]
   hs = [tf.one_hot(ys[i], num_labels) for i in range(args.nr_gpu)]
   ys_single = [tf.placeholder(tf.int32, shape=(1,))
-         for i in range(args.nr_gpu)]
+     for i in range(args.nr_gpu)]
   hs_single = [tf.one_hot(ys_single[i], num_labels) for i in range(args.nr_gpu)]
 else:
   h_init = None
@@ -126,12 +129,7 @@ else:
   hs_single = [None] * args.nr_gpu
 
 # create the model
-model_opt = { 'nr_resnet': args.nr_resnet,
-              'nr_filters': args.nr_filters,
-              'nr_logistic_mix': args.nr_logistic_mix,
-              'resnet_nonlinearity': args.resnet_nonlinearity,
-              'energy_distance': args.energy_distance,
-              'var_per_logistic': var_per_logistic }
+model_opt = { 'nr_resnet': args.nr_resnet, 'nr_filters': args.nr_filters, 'nr_logistic_mix': args.nr_logistic_mix, 'resnet_nonlinearity': args.resnet_nonlinearity, 'energy_distance': args.energy_distance, 'var_per_logistic': var_per_logistic }
 model = tf.make_template('model', model_spec)
 
 # run once for data dependent initialization of parameters
@@ -147,19 +145,21 @@ ema_params = [ema.average(p) for p in all_params]
 grads = []
 loss_gen = []
 loss_gen_test = []
+loss_gen_test_2 = []
 new_x_gen = []
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
-
-    # Get loss for each image
+    # train
     out = model(xs[i], hs[i], ema=None, dropout_p=args.dropout_p, **model_opt)
     loss_gen.append(loss_fun(tf.stop_gradient(xs[i]), out))
 
     # gradients
     grads.append(tf.gradients(loss_gen[i], all_params, colocate_gradients_with_ops=True))
+
     # test
     out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
     loss_gen_test.append(loss_fun(xs[i], out))
+    loss_gen_test_2.append(loss_fun_2(xs[i], out))
 
     # sample
     out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
@@ -173,12 +173,13 @@ tf_lr = tf.placeholder(tf.float32, shape=[])
 with tf.device('/gpu:0'):
   for i in range(1,args.nr_gpu):
     loss_gen[0] += loss_gen[i]
-    # loss_gen_test[0] += loss_gen_test[i]
+    loss_gen_test[0] += loss_gen_test[i]
     for j in range(len(grads[0])):
       grads[0][j] += grads[i][j]
   # training op
+  current_variables = tf.global_variables()
   param_updates, rmsprop_updates, rmsprop_original = nn.rmsprop_updates(
-      all_params, grads[0], lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
+    all_params, grads[0], lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
   optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
 
 # convert loss to bits/dim
@@ -197,12 +198,9 @@ def sample_from_model(sess):
 
 # save
 original_variables = tf.global_variables()
-saver = tf.train.Saver(original_variables)
+saver = tf.train.Saver(original_variables, max_to_keep=0)
 
 ##### SECOND PASS TO COMPUTE GRADIENTS FOR EACH INPUT RATHER THAN SUMMED
-loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
-sample_fun_2 = nn.sample_from_discretized_mix_logistic_greyscale
-
 trainable_params = [all_params]
 trainable_params[0].sort(key=lambda v: v.name)
 rmsprop_original.sort(key=lambda r: r[0].name)
@@ -214,99 +212,138 @@ grads_2, loss_gen_2, loss_test, optimizer_2, reset_variables, resetter, rmsprop_
 for i in range(args.nr_gpu):
   with tf.device('/gpu:%d' % i):
 
-    if i > 0:
-      current_trainable_variables = set(tf.trainable_variables())
-      all_models.append(tf.make_template('model_{}'.format(i), model_spec))
-      init_pass = all_models[i](x_init, h_init, init=True,
-              dropout_p=args.dropout_p, **model_opt)
-      trainable_params.append(list(set(tf.trainable_variables()) - current_trainable_variables))
-      trainable_params[i].sort(key=lambda v: v.name)
-      # ema = tf.train.ExponentialMovingAverage(decay=args.polyak_decay)
-      # maintain_averages_op = tf.group(ema.apply(trainable_params[i]))
+  if i > 0:
+    current_trainable_variables = set(tf.trainable_variables())
+    all_models.append(tf.make_template('model_{}'.format(i), model_spec))
+    init_pass = all_models[i](x_init, h_init, init=True,
+                dropout_p=args.dropout_p, **model_opt)
+    trainable_params.append(
+      list(set(tf.trainable_variables()) - current_trainable_variables))
+    trainable_params[i].sort(key=lambda v: v.name)
 
-    # Get loss for each image
-    out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=args.dropout_p, **model_opt)
-    loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
+  # Get loss for each image
+  out = all_models[i](xs_single[i], hs_single[i], ema=None,
+            dropout_p=args.dropout_p, **model_opt)
+  loss_gen_2.append(loss_fun_2(tf.stop_gradient(xs_single[i]), out))
 
-    # Get loss for each image
-    out = all_models[i](xs_single[i], hs_single[i], ema=None, dropout_p=0, **model_opt)
-    loss_test.append(loss_fun_2(xs_single[i], out))
+  # Get loss for each image
+  out = all_models[i](xs_single[i], hs_single[i],
+            ema=None, dropout_p=0, **model_opt)
+  loss_test.append(loss_fun_2(xs_single[i], out))
 
-    # gradients
-    grads_2.append(tf.gradients(loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
+  # gradients
+  grads_2.append(tf.gradients(
+    loss_gen_2[i], trainable_params[i], colocate_gradients_with_ops=True))
 
-    # training op
-    param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
-      trainable_params[i], grads_2[i],
-      lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
-    optimizer_2.append(tf.group(*param_updates_2))
-    rmsprop_variables.append(rmsprop_variables_i)
+  # training op
+  param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
+    trainable_params[i], grads_2[i],
+    lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
+  optimizer_2.append(tf.group(*param_updates_2))
+  rmsprop_variables.append(rmsprop_variables_i)
 
-    # create placeholders to reset the weights of the networks
-    reset_variables.append([])
-    for p_0, p in zip(trainable_params[0], trainable_params[i]):
-      v = tf.get_variable(p.name.split(':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
-      reset_variables[i].append(v)
+  # create placeholders to reset the weights of the networks
+  reset_variables.append([])
+  for p_0, p in zip(trainable_params[0], trainable_params[i]):
+    v = tf.get_variable(p.name.split(
+      ':')[0]+"_reset_"+str(i), shape=p.shape, initializer=tf.zeros_initializer)
+    reset_variables[i].append(v)
 
-    # create ops to reset the weights of the networks
-    reset = []
-    for v, p in zip(reset_variables[i], trainable_params[i]):
-      reset.append(p.assign(v))
+  # create ops to reset the weights of the networks
+  reset = []
+  for v, p in zip(reset_variables[i], trainable_params[i]):
+    reset.append(p.assign(v))
 
-    resetter.append(tf.group(*reset))
+  resetter.append(tf.group(*reset))
 
 # init
-initializer = tf.variables_initializer(
-    list(set(tf.global_variables()) - set(original_variables)),
-    name='init'
-)
+initializer = tf.global_variables_initializer()
 
 # turn numpy inputs into feed_dict for use with tensorflow
 def make_feed_dict(data, init=False, single=False):
   if type(data) is tuple:
-    x,y = data
+  x, y = data
   else:
-    x = data
-    y = None
-  x = np.cast[np.float32]((x - 127.5) / 127.5) # input to pixelCNN is scaled from uint8 [0,255] to float in range [-1,1]
+  x = data
+  y = None
+  # input to pixelCNN is scaled from uint8 [0,255] to float in range [-1,1]
+  x = np.cast[np.float32]((x - 127.5) / 127.5)
   if init:
-    feed_dict = {x_init: x}
-    if y is not None:
-      feed_dict.update({y_init: y})
+  feed_dict = {x_init: x}
+  if y is not None:
+    feed_dict.update({y_init: y})
   else:
-    x = np.split(x, args.nr_gpu)
-    if single:
-      feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
-      if y is not None:
-        y = np.split(y, args.nr_gpu)
-        feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
-    else:
-      feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
-      if y is not None:
-        y = np.split(y, args.nr_gpu)
-        feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
+  x = np.split(x, args.nr_gpu)
+  if single:
+    feed_dict = {xs_single[i]: x[i] for i in range(args.nr_gpu)}
+    if y is not None:
+    y = np.split(y, args.nr_gpu)
+    feed_dict.update({ys_single[i]: y[i] for i in range(args.nr_gpu)})
+  else:
+    feed_dict = {xs[i]: x[i] for i in range(args.nr_gpu)}
+    if y is not None:
+    y = np.split(y, args.nr_gpu)
+    feed_dict.update({ys[i]: y[i] for i in range(args.nr_gpu)})
   return feed_dict
 
-
 # //////////// perform training //////////////
-if not os.path.exists(args.model_dir):
-  os.makedirs(args.model_dir)
+if not os.path.exists(data_dir):
+  os.makedirs(data_dir)
 test_bpd = []
 lr = args.learning_rate
+with tf.Session() as sess:
+  for epoch in range(args.max_epochs):
+    begin = time.time()
 
-with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+    # init
+    if epoch == 0:
+      train_data.reset()  # rewind the iterator back to 0 to do one full epoch
+      plotting._print('initializing the model...')
+      sess.run(initializer)
+      feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
+      sess.run(init_pass, feed_dict)
+      plotting._print('starting training')
 
-  begin = time.time()
+    train_data.reset()  # rewind the iterator back to 0 to do one full epoch
+    # train for one epoch
+    train_losses, batch_id = [], 0
+    for d in train_data:
+      feed_dict = make_feed_dict(d)
+      # forward/backward/update model on each gpu
+      lr *= args.lr_decay
+      feed_dict.update({ tf_lr: lr })
+      l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
+      train_losses.append(l)
+      batch_id += 1
+      if batch_id % 10000 == 0:
+        plotting._print("   Batch %d, time = %ds" % (batch_id, time.time()-begin))
+    train_loss_gen = np.mean(train_losses)
+    plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
-  # init
-  data.reset()  # rewind the iterator back to 0 to do one full epoch
-  ckpt_file = os.path.join(args.model_dir,'{}_params_{}.cpkt'.format(args.data_set, args.epoch))
-  plotting._print('restoring parameters from', ckpt_file)
-  saver.restore(sess, ckpt_file)
-  plotting._print('initializing parameters')
-  sess.run(initializer)
-  if args.compute_pseudo_counts:
-    plotting._print('creating reset operations for {} variables'.format(len(rmsprop_original)))
+    # compute likelihood over test data
+    test_losses = []
+    for d in test_data:
+      feed_dict = make_feed_dict(d)
+      l, ll = sess.run([bits_per_dim_test, loss_gen_test_2], feed_dict)
+      test_losses.append(l)
+    test_loss_gen = np.mean(test_losses)
+    test_bpd.append(test_loss_gen)
+    plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
+
+    # log progress to console
+    plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
+    sys.stdout.flush()
+
+    if epoch % args.save_interval == 0:
+
+      # save params
+      saver.save(sess, os.path.join(data_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
+      plotting._print("Saved %d" % (epoch))
+
+    train_data.reset()  # rewind the iterator back to 0 to do one full epoch
+
+    plotting._print(
+        'creating reset operations for {} variables'.format(len(rmsprop_original)))
     ops = []
     for i, rms in enumerate(rmsprop_original):
       for r_v in reset_variables:
@@ -317,14 +354,13 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     plotting._print(
         "reset operations created in {} seconds".format(time.time()-begin))
     sess.run(resetter)
-  plotting._print("Run time for preparation = %ds" % (time.time()-begin))
-  plotting._print('starting computing')
-  begin = time.time()
 
-  # compute pseudo-counts
-  log_likelihoods = []
-  if args.compute_pseudo_counts:
-    recoding_log_likelihoods, data_points = [], 0
+    plotting._print("Run time for preparation = %ds" % (time.time()-begin))
+    plotting._print('starting computing')
+    begin = time.time()
+
+    # compute pseudo-counts
+    log_likelihoods, recoding_log_likelihoods, data_points = [], [], 0
     for d in data_single:
       feed_dict = make_feed_dict(d, single=True)
       feed_dict.update({tf_lr: lr})
@@ -337,7 +373,8 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
       recoding_log_likelihoods.extend(l_2)
       data_points += args.nr_gpu
       if data_points % 10000 == 0:
-        plotting._print("  Run time for %d points = %ds" % (data_points, time.time()-begin))
+        plotting._print("  Run time for %d points = %ds" %
+                        (data_points, time.time()-begin))
 
     plotting._print("Run time for recoding = %ds" % (time.time()-begin))
     recoding_log_likelihoods = np.array(recoding_log_likelihoods)
@@ -349,22 +386,11 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
     pseudo_counts, pseudo_counts_approx = [], []
     if args.action is not None:
       log_likelihoods -= np.log(actions_counts[args.action] / num_actions)
-      recoding_log_likelihoods -= np.log((actions_counts[args.action] + 1) / (num_actions + 1))
+      recoding_log_likelihoods -= np.log(
+          (actions_counts[args.action] + 1) / (num_actions + 1))
 
       pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
       pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
 
-      with open(os.path.join(args.model_dir,"pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+      with open(os.path.join(args.model_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
         pickle.dump(pseudo_counts_approx, f)
-
-  else:
-    # compute likelihood over data
-    for d in data_single:
-      feed_dict = make_feed_dict(d, single=True)
-      l = np.array(sess.run(loss_test, feed_dict))
-      log_likelihoods.extend(np.reshape(l,(-1)))
-    plotting._print("Run time for likelihoods = %ds" % (time.time()-begin))
-    begin = time.time()
-    log_likelihoods = np.array(log_likelihoods)
-    with open(os.path.join(args.model_dir,"new_log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-      pickle.dump(log_likelihoods, f)

@@ -33,7 +33,7 @@ Loads the batch of transitions and creates transitions objects from them.
 (s, a, r, s')
 '''
 def load(path, transitions_filenumber=-1, transitions_filename="transitions",
-         counts_filename="count", models_filename="models", subset='train', extend_to=1, action=None):
+         subset='train', extend_to=1, action=None):
     '''
     It is used to compute the density of state-action pairs.
     rho(s, a) = rho_a(s) * marginal(a)
@@ -45,7 +45,7 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
       transitions_filenumber = max(map(lambda x: x[:-4].split("_")[-2], glob.glob(os.path.join(path, transitions_filename+'*'))))
     if transitions_filenumber == -1:
       raise ValueError("The transitions file was not found")
-    filename = get_filename(path, transitions_filename, transitions_filenumber, counts_filename, models_filename)
+    filename = get_filename(path, transitions_filename, transitions_filenumber)
     with open(os.path.join(path, filename+"_rest.pkl"), "rb") as f:
       downsampled, actions, rewards, terms = pickle.load(f)
     # Add a bit of black around downsampled states so their size is a multiple of 4.
@@ -57,10 +57,9 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
         downsampled = np.concatenate((downsampled, np.zeros((extra, 44, 44))), axis=0)
         new_actions = np.concatenate((new_actions, np.zeros((extra), dtype=np.int32)), axis=0)
     states = downsampled.reshape(downsampled.shape+(1,))
-    dataset_size = states.shape[0] - extend_to
-    # train_set_size = 9 * int(dataset_size / 10)
-    train_set_size = dataset_size
-    test_set_size = extend_to
+    dataset_size = states.shape[0]
+    train_set_size = int(dataset_size / extend_to) * extend_to
+    test_set_size = dataset_size - train_set_size
     if subset == 'train':
         _print("The train set size is {}".format(train_set_size))
         return states[:train_set_size], actions[:train_set_size], actions[:train_set_size]
@@ -69,14 +68,12 @@ def load(path, transitions_filenumber=-1, transitions_filename="transitions",
         return states[train_set_size:], actions[train_set_size:], actions[train_set_size:]
     elif subset == 'all':
         _print("The data set size is {}".format(dataset_size))
-        return states, new_actions, actions
+        return states[:dataset_size], new_actions[:dataset_size], actions[:dataset_size]
     else:
         raise ValueError("The subset has to be train or test")
 
-def get_filename(path, transitions_filename, transitions_filenumber, counts_filename, models_filename):
+def get_filename(path, transitions_filename, transitions_filenumber):
     full_name = glob.glob(os.path.join(path, transitions_filename+'*_'+str(transitions_filenumber)+'*'))[0]
-    full_name = full_name.split('_'+counts_filename)[0]
-    full_name = full_name.split('_'+models_filename)[0]
     full_name = full_name.split('_rest')[0]
     full_name = full_name.split('_states')[0]
     return full_name.split("/")[-1].split("\\")[-1]
@@ -84,7 +81,7 @@ def get_filename(path, transitions_filename, transitions_filenumber, counts_file
 class DataLoader(object):
     """ an object that generates batches of CIFAR-10 data for training """
 
-    def __init__(self, data_dir, subset, batch_size, rng=None, shuffle=False, return_labels=False, action=None):
+    def __init__(self, data_dir, subset, batch_size, rng=None, shuffle=False, return_labels=False, action=None, filename='transitions'):
         """
         - data_dir is location where to store files
         - subset is train|test
@@ -100,7 +97,7 @@ class DataLoader(object):
         # load CIFAR-10 training data to RAM
         _print("Loading data")
         start_time = time.time()
-        self.data, self.labels, self.original_labels = load(data_dir, subset=subset, extend_to=batch_size, action=action)
+        self.data, self.labels, self.original_labels = load(data_dir, subset=subset, extend_to=batch_size, action=action, transitions_filename=filename)
         _print('Data loaded in {:.1f} seconds'.format(time.time() - start_time))
         # self.data = np.transpose(self.data, (0,2,3,1)) # (N,3,32,32) -> (N,32,32,3)
 
@@ -121,6 +118,9 @@ class DataLoader(object):
 
     def reset(self):
         self.p = 0
+
+    def truncate(self, num):
+        self.data, self.labels, self.original_labels = self.data[:num], self.labels[:num], self.original_labels[:num]
 
     def __iter__(self):
         return self

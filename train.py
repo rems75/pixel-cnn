@@ -28,6 +28,7 @@ parser.add_argument('-i', '--data_dir', type=str, default=os.getenv(
     'PT_DATA_DIR', 'data'), help='Location for the dataset')
 parser.add_argument('-o', '--model_dir', type=str, default=os.getenv(
     'PT_OUTPUT_DIR', 'save'), help='Location for parameter checkpoints and samples')
+parser.add_argument('--batch', type=str, default='transitions', help='Name of the batch')
 parser.add_argument('-ld', '--log_dir', type=str, default='log', help='Location of logs/Only used for Philly')
 parser.add_argument('-d', '--data_set', type=str, default='qbert', help='Can be either qbert|cifar|imagenet')
 parser.add_argument('-t', '--save_interval', type=int, default=20, help='Every how many epochs to write checkpoint/samples?')
@@ -41,6 +42,7 @@ parser.add_argument('-c', '--class_conditional', dest='class_conditional', actio
 parser.add_argument('-ed', '--energy_distance', dest='energy_distance', action='store_true', help='use energy distance in place of likelihood')
 # optimization
 parser.add_argument('-l', '--learning_rate', type=float, default=0.001, help='Base learning rate')
+parser.add_argument('--momentum', type=float, default=0.9, help='Base nesterov momentum')
 parser.add_argument('-e', '--lr_decay', type=float, default=1.0, help='Learning rate decay, applied every step of the optimization')
 parser.add_argument('-b', '--batch_size', type=int, default=16, help='Batch size during training per GPU')
 parser.add_argument('-u', '--init_batch_size', type=int, default=16, help='How much data to use for data-dependent initialization.')
@@ -74,8 +76,10 @@ elif args.data_set == 'qbert':
     DataLoader = qbert_data.DataLoader
 else:
     raise("unsupported dataset")
-train_data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, rng=rng, shuffle=True, return_labels=args.class_conditional)
-test_data = DataLoader(args.data_dir, 'test', args.batch_size * args.nr_gpu, shuffle=False, return_labels=args.class_conditional)
+train_data = DataLoader(args.data_dir, 'train', args.batch_size * args.nr_gpu, rng=rng,
+                        shuffle=True, return_labels=args.class_conditional, filename=args.batch)
+test_data = DataLoader(args.data_dir, 'test', args.batch_size * args.nr_gpu,
+                       shuffle=False, return_labels=args.class_conditional, filename=args.batch)
 obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
 
@@ -85,6 +89,7 @@ if args.energy_distance:
 else:
     if obs_shape[2] == 1:
         loss_fun = nn.discretized_mix_logistic_loss_greyscale
+        loss_fun_2 = lambda x, l: nn.discretized_mix_logistic_loss_greyscale(x, l, sum_all=False)
         sample_fun = nn.sample_from_discretized_mix_logistic_greyscale
         var_per_logistic = 3
     else:
@@ -127,6 +132,7 @@ ema_params = [ema.average(p) for p in all_params]
 grads = []
 loss_gen = []
 loss_gen_test = []
+loss_gen_test_2 = []
 new_x_gen = []
 for i in range(args.nr_gpu):
     with tf.device('/gpu:%d' % i):
@@ -140,6 +146,7 @@ for i in range(args.nr_gpu):
         # test
         out = model(xs[i], hs[i], ema=ema, dropout_p=0., **model_opt)
         loss_gen_test.append(loss_fun(xs[i], out))
+        loss_gen_test_2.append(loss_fun_2(xs[i], out))
 
         # sample
         out = model(xs[i], h_sample[i], ema=ema, dropout_p=0, **model_opt)
@@ -159,9 +166,8 @@ with tf.device('/gpu:0'):
     # training op
     current_variables = tf.global_variables()
     param_updates, rmsprop_updates, _ = nn.rmsprop_updates(
-        all_params, grads[0], lr=tf_lr, mom=0.9, dec=0.95, eps=1.0e-4)
+        all_params, grads[0], lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
     optimizer = tf.group(*(param_updates+rmsprop_updates), maintain_averages_op)
-    rmsprop_variables = list(set(tf.global_variables()) - set(current_variables))
 
 # convert loss to bits/dim
 bits_per_dim = loss_gen[0]/(args.nr_gpu*np.log(2.)*np.prod(obs_shape)*args.batch_size)
@@ -243,7 +249,7 @@ with tf.Session() as sess:
         test_losses = []
         for d in test_data:
             feed_dict = make_feed_dict(d)
-            l = sess.run(bits_per_dim_test, feed_dict)
+            l, ll = sess.run([bits_per_dim_test, loss_gen_test_2], feed_dict)
             test_losses.append(l)
         test_loss_gen = np.mean(test_losses)
         test_bpd.append(test_loss_gen)
