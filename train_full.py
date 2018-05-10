@@ -13,6 +13,7 @@ import sys
 import json
 import argparse
 import time
+import pickle
 
 import numpy as np
 import tensorflow as tf
@@ -87,9 +88,11 @@ train_data = DataLoader(data_dir, 'train', args.batch_size * args.nr_gpu, rng=rn
                         shuffle=True, return_labels=args.class_conditional, filename=args.batch)
 test_data = DataLoader(data_dir, 'test', args.batch_size * args.nr_gpu,
                        shuffle=False, return_labels=args.class_conditional, filename=args.batch)
-data_single = DataLoader(data_dir, 'train', args.nr_gpu,
-                         rng=rng, shuffle=False, return_labels=True, action=args.action, filename=args.batch)
-data_single.truncate(train_data.get_num_obs())
+
+actions_counts = dict(zip(*train_data.get_stat_labels()))
+num_actions = train_data.original_labels.size
+print(actions_counts, num_actions, np.sum(actions_counts.values()))
+
 
 obs_shape = train_data.get_observation_size() # e.g. a tuple (32,32,3)
 assert len(obs_shape) == 3, 'assumed right now'
@@ -305,45 +308,52 @@ with tf.Session() as sess:
       train_data.reset()  # rewind the iterator back to 0 to do one full epoch
       plotting._print('initializing the model...')
       sess.run(initializer)
+      loading = False
+      ckpt_file = os.path.join(
+          data_dir, '{}_params_{}.cpkt'.format(args.data_set, epoch))
+      if os.path.exists(ckpt_file):
+        plotting._print('restoring parameters from', ckpt_file)
+        saver.restore(sess, ckpt_file)
+        loading = True
       feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
       sess.run(init_pass, feed_dict)
       plotting._print('starting training')
 
-    train_data.reset()  # rewind the iterator back to 0 to do one full epoch
-    # train for one epoch
-    train_losses, batch_id = [], 0
-    for d in train_data:
-      feed_dict = make_feed_dict(d)
-      # forward/backward/update model on each gpu
-      lr *= args.lr_decay
-      feed_dict.update({ tf_lr: lr })
-      l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
-      train_losses.append(l)
-      batch_id += 1
-      if batch_id % 10000 == 0:
-        plotting._print("   Batch %d, time = %ds" % (batch_id, time.time()-begin))
-    train_loss_gen = np.mean(train_losses)
-    plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
+    if not loading:
+      train_data.reset()  # rewind the iterator back to 0 to do one full epoch
+      # train for one epoch
+      train_losses, batch_id = [], 0
+      for d in train_data:
+        feed_dict = make_feed_dict(d)
+        # forward/backward/update model on each gpu
+        lr *= args.lr_decay
+        feed_dict.update({ tf_lr: lr })
+        l,_ = sess.run([bits_per_dim, optimizer], feed_dict)
+        train_losses.append(l)
+        batch_id += 1
+        if batch_id % 10000 == 0:
+          plotting._print("   Batch %d, time = %ds" % (batch_id, time.time()-begin))
+      train_loss_gen = np.mean(train_losses)
+      plotting._print("  Training Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
-    # compute likelihood over test data
-    test_losses = []
-    for d in test_data:
-      feed_dict = make_feed_dict(d)
-      l, ll = sess.run([bits_per_dim_test, loss_gen_test_2], feed_dict)
-      test_losses.append(l)
-    test_loss_gen = np.mean(test_losses)
-    test_bpd.append(test_loss_gen)
-    plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
+      # compute likelihood over test data
+      test_losses = []
+      for d in test_data:
+        feed_dict = make_feed_dict(d)
+        l, ll = sess.run([bits_per_dim_test, loss_gen_test_2], feed_dict)
+        test_losses.append(l)
+      test_loss_gen = np.mean(test_losses)
+      test_bpd.append(test_loss_gen)
+      plotting._print("  Testing Iteration %d, time = %ds" % (epoch, time.time()-begin))
 
-    # log progress to console
-    plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
-    sys.stdout.flush()
+      # log progress to console
+      plotting._print("Iteration %d, time = %ds, train bits_per_dim = %.4f, test bits_per_dim = %.4f" % (epoch, time.time()-begin, train_loss_gen, test_loss_gen))
+      sys.stdout.flush()
 
-    if epoch % args.save_interval == 0:
-
-      # save params
-      saver.save(sess, os.path.join(data_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
-      plotting._print("Saved %d" % (epoch))
+      if epoch % args.save_interval == 0:
+        # save params
+        saver.save(sess, os.path.join(data_dir,'{}_params_{}.cpkt'.format(args.data_set, epoch)))
+        plotting._print("Saved %d" % (epoch))
 
     train_data.reset()  # rewind the iterator back to 0 to do one full epoch
 
@@ -361,41 +371,47 @@ with tf.Session() as sess:
     sess.run(resetter)
 
     plotting._print("Run time for preparation = %ds" % (time.time()-begin))
-    plotting._print('starting computing')
-    begin = time.time()
+    for action in range(6):
+      if os.path.exists(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(epoch, action))):
+        continue
+      plotting._print('  starting computing action {}'.format(action))
+      begin = time.time()
 
-    # compute pseudo-counts
-    log_likelihoods, recoding_log_likelihoods, data_points = [], [], 0
-    for d in data_single:
-      feed_dict = make_feed_dict(d, single=True)
-      feed_dict.update({tf_lr: lr})
-      l = np.reshape(sess.run(loss_test, feed_dict), (-1))
-      log_likelihoods.extend(l)
-      _ = sess.run(optimizer_2, feed_dict)
-      l_2 = np.reshape(sess.run(loss_test, feed_dict), (-1))
-      # Undo update
-      sess.run(resetter)
-      recoding_log_likelihoods.extend(l_2)
-      data_points += args.nr_gpu
-      if data_points % 10000 == 0:
-        plotting._print("  Run time for %d points = %ds" %
-                        (data_points, time.time()-begin))
+      data_single = DataLoader(data_dir, 'train', args.nr_gpu,
+                              rng=rng, shuffle=False, return_labels=True, action=action, filename=args.batch)
+      data_single.truncate(train_data.get_num_obs())
 
-    plotting._print("Run time for recoding = %ds" % (time.time()-begin))
-    recoding_log_likelihoods = np.array(recoding_log_likelihoods)
-    log_likelihoods = np.array(log_likelihoods)
-    with open(os.path.join(data_dir, "log_likelihoods_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-      pickle.dump(log_likelihoods, f)
-    with open(os.path.join(data_dir, "recoding_epoch_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
-      pickle.dump(recoding_log_likelihoods, f)
-    pseudo_counts, pseudo_counts_approx = [], []
-    if args.action is not None:
-      log_likelihoods -= np.log(actions_counts[args.action] / num_actions)
+      # compute pseudo-counts
+      log_likelihoods, recoding_log_likelihoods, data_points = [], [], 0
+      for d in data_single:
+        feed_dict = make_feed_dict(d, single=True)
+        feed_dict.update({tf_lr: lr})
+        l = np.reshape(sess.run(loss_test, feed_dict), (-1))
+        log_likelihoods.extend(l)
+        _ = sess.run(optimizer_2, feed_dict)
+        l_2 = np.reshape(sess.run(loss_test, feed_dict), (-1))
+        # Undo update
+        sess.run(resetter)
+        recoding_log_likelihoods.extend(l_2)
+        data_points += args.nr_gpu
+        if data_points % 10000 == 0:
+          plotting._print("   Run time for %d points = %ds" %
+                          (data_points, time.time()-begin))
+
+      plotting._print("  Run time for recoding = %ds" % (time.time()-begin))
+      recoding_log_likelihoods = np.array(recoding_log_likelihoods)
+      log_likelihoods = np.array(log_likelihoods)
+      with open(os.path.join(data_dir, "log_likelihoods_epoch_{}_action_{}.pkl".format(epoch, action)), 'wb') as f:
+        pickle.dump(log_likelihoods, f)
+      with open(os.path.join(data_dir, "recoding_epoch_{}_action_{}.pkl".format(epoch, action)), 'wb') as f:
+        pickle.dump(recoding_log_likelihoods, f)
+      pseudo_counts, pseudo_counts_approx = [], []
+      log_likelihoods -= np.log(actions_counts[action] / num_actions)
       recoding_log_likelihoods -= np.log(
-          (actions_counts[args.action] + 1) / (num_actions + 1))
+          (actions_counts[action] + 1) / (num_actions + 1))
 
       pg = np.max(- recoding_log_likelihoods + log_likelihoods, 0)
       pseudo_counts_approx = 1 / (np.exp(0.1 * pg / np.sqrt(num_actions)) - 1)
 
-      with open(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(args.epoch, args.action)), 'wb') as f:
+      with open(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(epoch, action)), 'wb') as f:
         pickle.dump(pseudo_counts_approx, f)
