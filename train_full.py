@@ -245,7 +245,7 @@ for i in range(args.nr_gpu):
     # training op
     param_updates_2, _, rmsprop_variables_i = nn.rmsprop_updates(
       trainable_params[i], grads_2[i],
-      lr=tf_lr, mom=args.momentum, dec=0.95, eps=1.0e-4)
+      lr=tf_lr, mom=0.0, dec=0.95, eps=1.0e-4)
     optimizer_2.append(tf.group(*param_updates_2))
     rmsprop_variables.append(rmsprop_variables_i)
 
@@ -315,9 +315,10 @@ with tf.Session() as sess:
         plotting._print('restoring parameters from', ckpt_file)
         saver.restore(sess, ckpt_file)
         loading = True
-      feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
-      sess.run(init_pass, feed_dict)
-      plotting._print('starting training')
+      else:
+        feed_dict = make_feed_dict(train_data.next(args.init_batch_size), init=True)  # manually retrieve exactly init_batch_size examples
+        sess.run(init_pass, feed_dict)
+        plotting._print('starting training')
 
     if not loading:
       train_data.reset()  # rewind the iterator back to 0 to do one full epoch
@@ -372,7 +373,7 @@ with tf.Session() as sess:
 
     plotting._print("Run time for preparation = %ds" % (time.time()-begin))
     for action in range(6):
-      if os.path.exists(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(epoch, action))):
+      if os.path.exists(os.path.join(data_dir, "pseudo_counts_approx_{}_action_{}.pkl".format(epoch, action))) and not args.compute_pseudo_counts:
         continue
       plotting._print('  starting computing action {}'.format(action))
       begin = time.time()
